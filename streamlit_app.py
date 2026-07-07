@@ -18,7 +18,7 @@ if not st.session_state.get("password_correct", False):
             st.error("❌ Falsches Passwort!")
     st.stop()
 
-st.title("📊 Sven's 8-Pillar Betting Algorithm")
+st.title("📊 Sven's 8-Pillar Global Betting Algorithm")
 
 # ⚙️ SYSTEMEINSTELLUNGEN
 st.sidebar.header("⚙️ Systemeinstellungen")
@@ -36,48 +36,48 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ UNZERSTÖRBARE HYBRID-DATENBANK (ALLE LIGEN + AKTULLE MATCHES)
+# ⚽ UNZERSTÖRBARE GLOBAL-DATENBANK (STAND: JULI 2026)
 ligen_datenbank = {
-    "FIFA Weltmeisterschaft 2026 (K.o.-Phase)": {
+    "🔥 FIFA Weltmeisterschaft 2026 (K.o.-Phase)": {
         "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2},
-        "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0},
-        "Eigenes WM-Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+        "Spanien - Belgien": {"home_xg": 1.85, "away_xg": 1.40, "home_inj": 0, "away_inj": 1},
+        "Norwegen - England": {"home_xg": 1.65, "away_xg": 1.90, "home_inj": 1, "away_inj": 0},
+        "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0}
     },
-    "Deutschland: 1. Bundesliga": {
-        "Bayern München - Borussia Dortmund": {"home_xg": 2.30, "away_xg": 1.40, "home_inj": 1, "away_inj": 2},
-        "Werder Bremen - VfB Stuttgart": {"home_xg": 1.45, "away_xg": 1.60, "home_inj": 0, "away_inj": 1},
-        "RB Leipzig - Bayer Leverkusen": {"home_xg": 1.75, "away_xg": 1.80, "home_inj": 2, "away_inj": 0},
-        "Eigenes Bundesliga-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    "🇪🇺 UEFA Europapokal (Qualifikation 2026/27)": {
+        "Malmö FF - KÍ Klaksvík (UCL Quali)": {"home_xg": 2.40, "away_xg": 0.75, "home_inj": 0, "away_inj": 1},
+        "Shamrock Rovers - Larne FC (UCL Quali)": {"home_xg": 1.80, "away_xg": 1.10, "home_inj": 1, "away_inj": 0},
+        "Vikingur Reykjavik - UE Santa Coloma": {"home_xg": 2.15, "away_xg": 0.85, "home_inj": 0, "away_inj": 0}
     },
-    "England: Premier League": {
-        "Manchester City - Liverpool FC": {"home_xg": 2.20, "away_xg": 1.70, "home_inj": 1, "away_inj": 1},
-        "Arsenal FC - Chelsea FC": {"home_xg": 1.95, "away_xg": 1.20, "home_inj": 0, "away_inj": 2},
-        "Manchester United - Tottenham": {"home_xg": 1.60, "away_xg": 1.55, "home_inj": 1, "away_inj": 0},
-        "Eigenes Premier League-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
-    },
-    "Spanien: La Liga": {
-        "Real Madrid - FC Barcelona": {"home_xg": 2.15, "away_xg": 1.85, "home_inj": 1, "away_inj": 1},
-        "Atlético Madrid - Sevilla FC": {"home_xg": 1.70, "away_xg": 1.05, "home_inj": 0, "away_inj": 0},
-        "Eigenes La Liga-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
-    },
-    "Schweden: Allsvenskan": {
+    "🇸🇪 Schweden: Allsvenskan (Voll im Spielbetrieb)": {
         "Hammarby IF - IFK Göteborg": {"home_xg": 1.75, "away_xg": 1.15, "home_inj": 1, "away_inj": 2},
         "Malmö FF - GAIS": {"home_xg": 2.25, "away_xg": 0.90, "home_inj": 0, "away_inj": 1},
-        "Djurgårdens IF - IFK Norrköping": {"home_xg": 1.90, "away_xg": 1.10, "home_inj": 1, "away_inj": 0},
-        "Eigenes Schweden-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+        "Djurgårdens IF - IFK Norrköping": {"home_xg": 1.90, "away_xg": 1.10, "home_inj": 1, "away_inj": 0}
     },
-    "Norwegen: Eliteserien": {
+    "🇳🇴 Norwegen: Eliteserien (Voll im Spielbetrieb)": {
         "Bodø/Glimt - Brann Bergen": {"home_xg": 2.10, "away_xg": 1.40, "home_inj": 1, "away_inj": 1},
         "Molde FK - Lillestrøm SK": {"home_xg": 2.05, "away_xg": 1.10, "home_inj": 2, "away_inj": 0},
-        "Viking Stavanger - Rosenborg BK": {"home_xg": 1.80, "away_xg": 1.35, "home_inj": 0, "away_inj": 2},
-        "Eigenes Norwegen-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+        "Viking Stavanger - Rosenborg BK": {"home_xg": 1.80, "away_xg": 1.35, "home_inj": 0, "away_inj": 2}
     },
-    "USA: MLS (Major League Soccer)": {
+    "🇺🇸 USA: MLS (Major League Soccer)": {
         "Orlando City - Inter Miami": {"home_xg": 1.45, "away_xg": 1.85, "home_inj": 1, "away_inj": 0},
-        "LA Galaxy - Los Angeles FC": {"home_xg": 1.70, "away_xg": 1.60, "home_inj": 0, "away_inj": 1},
-        "Eigenes MLS-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+        "LA Galaxy - Los Angeles FC": {"home_xg": 1.70, "away_xg": 1.60, "home_inj": 0, "away_inj": 1}
     },
-    "Sonstige Ligen / Manueller Joker": {
+    "🇩🇪 Deutschland: 1. Bundesliga (Vorbereitung/Stammdaten)": {
+        "Bayern München - Borussia Dortmund": {"home_xg": 2.30, "away_xg": 1.40, "home_inj": 1, "away_inj": 2},
+        "Werder Bremen - VfB Stuttgart": {"home_xg": 1.45, "away_xg": 1.60, "home_inj": 0, "away_inj": 1},
+        "RB Leipzig - Bayer Leverkusen": {"home_xg": 1.75, "away_xg": 1.80, "home_inj": 2, "away_inj": 0}
+    },
+    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 England: Premier League (Vorbereitung/Stammdaten)": {
+        "Manchester City - Liverpool FC": {"home_xg": 2.20, "away_xg": 1.70, "home_inj": 1, "away_inj": 1},
+        "Arsenal FC - Chelsea FC": {"home_xg": 1.95, "away_xg": 1.20, "home_inj": 0, "away_inj": 2},
+        "Manchester United - Tottenham": {"home_xg": 1.60, "away_xg": 1.55, "home_inj": 1, "away_inj": 0}
+    },
+    "🇪🇸 Spanien: La Liga (Vorbereitung/Stammdaten)": {
+        "Real Madrid - FC Barcelona": {"home_xg": 2.15, "away_xg": 1.85, "home_inj": 1, "away_inj": 1},
+        "Atlético Madrid - Sevilla FC": {"home_xg": 1.70, "away_xg": 1.05, "home_inj": 0, "away_inj": 0}
+    },
+    "🃏 Manueller Joker (Jede andere Liga weltweit)": {
         "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     }
 }
@@ -85,7 +85,7 @@ ligen_datenbank = {
 st.header("⚽ Spielauswahl & Match-Modus")
 liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_datenbank.keys()))
 partien_zur_auswahl = list(ligen_datenbank[liga_auswahl].keys())
-spiel_auswahl = st.selectbox("2. Wähle die Partie aus:", partien_zur_auswahl)
+spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_zur_auswahl)
 
 if "goals_home" not in st.session_state: st.session_state.goals_home = 0
 if "goals_away" not in st.session_state: st.session_state.goals_away = 0
@@ -130,7 +130,7 @@ else:
     st.session_state.goals_away = 0
     st.info("📊 **PRE-MATCH-ANALYSE AKTIV:** Berechnung erfolgt für den Spielbeginn (0. Min | 0:0).")
 
-# Adaptive Tor-Erwartung
+# Adaptive Tor-Erwartung & Restzeit
 gesamttore_aktuell = st.session_state.goals_home + st.session_state.goals_away
 restzeit_anteil = max((90.1 - live_minute) / 90.0, 0.02)
 
@@ -161,7 +161,7 @@ with col2:
 def poisson_pmf(k, lamb):
     return (lamb ** k * math.exp(-lamb)) / math.factorial(k)
 
-# Multi-Markt Berechnung
+# Multi-Markt Berechnung (Inklusive 1,5 Tore Overlay)
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
 prob_btts_yes, prob_under_15, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0, 0.0
 
