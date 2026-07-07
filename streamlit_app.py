@@ -46,13 +46,20 @@ st.header("⚽ Heutiger Spielplan & Live-Analyse")
 heute_str = datetime.date.today().strftime("%d.%m.%Y")
 st.write(f"📅 *Aktueller Spielplan für:* **{heute_str}**")
 
-# Intelligente, dynamische Spieldatenbank nach Ligen sortiert
+# Erweiterte Spieldatenbank inklusive FIFA Weltmeisterschaft
 ligen_spiele_datenbank = {
-    "UEFA Europameisterschaft": [
+    "FIFA Weltmeisterschaft": [
         "Deutschland - Spanien",
+        "Frankreich - Brasilien",
+        "Argentinien - England",
+        "Niederlande - Portugal",
+        "Italien - Marokko"
+    ],
+    "UEFA Europameisterschaft": [
+        "Deutschland - Italien",
         "Frankreich - Portugal",
         "England - Niederlande",
-        "Italien - Kroatien"
+        "Kroatien - Spanien"
     ],
     "Copa América": [
         "Uruguay - Kolumbien",
@@ -118,7 +125,7 @@ if game_input and spiel_auswahl != "Eigenes Spiel manuell eingeben...":
     hash_calc = sum(ord(char) for char in search_query)
     
     # Integrierte 8-Säulen-Logik für Torschnitte (Pokal/Turniere vs. Liga)
-    modifier = 0.25 if liga_auswahl in ["UEFA Europameisterschaft", "Copa América"] else 0.0
+    modifier = 0.25 if liga_auswahl in ["FIFA Weltmeisterschaft", "UEFA Europameisterschaft", "Copa América"] else 0.0
     
     st.session_state.base_home = round(1.2 + (hash_calc % 12) * 0.1 + modifier, 2)
     st.session_state.base_away = round(0.6 + (hash_calc % 9) * 0.1, 2)
