@@ -43,14 +43,16 @@ ligen_datenbank = {
         "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0},
         "Eigenes WM-Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     },
-    "Schweden: Allsvenskan": {
-        "Malmö FF - Djurgårdens IF": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0},
-        "Hammarby IF - AIK Solna": {"home_xg": 1.55, "away_xg": 1.30, "home_inj": 0, "away_inj": 1},
+    "Schweden: Allsvenskan (Aktueller Spieltag)": {
+        "Hammarby IF - IFK Göteborg": {"home_xg": 1.75, "away_xg": 1.15, "home_inj": 1, "away_inj": 2},
+        "Malmö FF - GAIS": {"home_xg": 2.25, "away_xg": 0.90, "home_inj": 0, "away_inj": 1},
+        "Djurgårdens IF - IFK Norrköping": {"home_xg": 1.90, "away_xg": 1.10, "home_inj": 1, "away_inj": 0},
         "Eigenes Schweden-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     },
-    "Norwegen: Eliteserien": {
-        "Molde FK - Bodø/Glimt": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1},
-        "Rosenborg BK - Fredrikstad FK": {"home_xg": 1.40, "away_xg": 1.15, "home_inj": 0, "away_inj": 0},
+    "Norwegen: Eliteserien (Aktueller Spieltag)": {
+        "Bodø/Glimt - Brann Bergen": {"home_xg": 2.10, "away_xg": 1.40, "home_inj": 1, "away_inj": 1},
+        "Molde FK - Lillestrøm SK": {"home_xg": 2.05, "away_xg": 1.10, "home_inj": 2, "away_inj": 0},
+        "Viking Stavanger - Rosenborg BK": {"home_xg": 1.80, "away_xg": 1.35, "home_inj": 0, "away_inj": 2},
         "Eigenes Norwegen-Spiel manuell...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     },
     "USA: MLS (Major League Soccer)": {
