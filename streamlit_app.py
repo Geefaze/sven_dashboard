@@ -24,7 +24,7 @@ st.title("📊 Sven's 8-Pillar Live-Betting Algorithm")
 st.sidebar.header("⚙️ Systemeinstellungen")
 modus = st.sidebar.radio("Modus auswählen:", ["Herren-Fußball (Regulär)", "Frauen-Fußball (Strenges Overlay)"])
 
-# ⏰ ZEITZONEN-KORREKTUR (Holt den Server-Rückstand auf)
+# ⏰ ZEITZONEN-KORREKTUR
 st.sidebar.subheader("⏰ Zeitzonen-Korrektur")
 zeit_offset_stunden = st.sidebar.slider("Server-Zeitkorrektur (Stunden)", -5, 5, 2)
 
@@ -87,7 +87,6 @@ else:
     
     stunde = ligen_datenbank[liga_auswahl][spiel_auswahl]["anstoss_stunde"]
     minute = ligen_datenbank[liga_auswahl][spiel_auswahl]["anstoss_minute"]
-    
     anstoss_zeit = jetzt.replace(hour=stunde, minute=minute, second=0, microsecond=0)
     
     if jetzt >= anstoss_zeit:
@@ -152,7 +151,7 @@ def poisson_pmf(k, lamb):
 
 # Multi-Markt Berechnung
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
-prob_btts_yes, prob_under_25 = 0.0, 0.0
+prob_btts_yes, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0
 
 for x in range(0, 11):
     for y in range(0, 11):
@@ -165,16 +164,15 @@ for x in range(0, 11):
         else: prob_away += p
         if end_home > 0 and end_away > 0: prob_btts_yes += p
         if (end_home + end_away) < 2.5: prob_under_25 += p
+        if (end_home + end_away) < 3.5: prob_under_35 += p
 
 prob_dc_1x = prob_home + prob_draw
 prob_dc_x2 = prob_away + prob_draw
-prob_dnb_1 = prob_home / (1.0 - prob_draw) if prob_draw < 1 else 0.0
-prob_dnb_2 = prob_away / (1.0 - prob_draw) if prob_draw < 1 else 0.0
 
 heim_name = game_input.split('-')[0].strip() if '-' in game_input else 'Heim'
 auswaerts_name = game_input.split('-')[1].strip() if '-' in game_input else 'Auswärts'
 
-# 📊 MATHEMATISCHE ERMITTLUNG DER LIVE-QUOTEN FÜR JEDEN TIPP
+# Quoten generieren
 odds_1 = round((1.0 / (prob_home + 0.02)) * 0.95, 2) if prob_home > 0.01 else 99.0
 odds_x = round((1.0 / (prob_draw + 0.02)) * 0.95, 2) if prob_draw > 0.01 else 99.0
 odds_2 = round((1.0 / (prob_away + 0.02)) * 0.95, 2) if prob_away > 0.01 else 99.0
@@ -182,77 +180,88 @@ odds_btts_yes = round((1.0 / (prob_btts_yes + 0.02)) * 0.95, 2) if prob_btts_yes
 odds_btts_no = round((1.0 / ((1 - prob_btts_yes) + 0.02)) * 0.95, 2) if (1 - prob_btts_yes) > 0.01 else 99.0
 odds_under_25 = round((1.0 / (prob_under_25 + 0.02)) * 0.95, 2) if prob_under_25 > 0.01 else 99.0
 odds_over_25 = round((1.0 / ((1 - prob_under_25) + 0.02)) * 0.95, 2) if (1 - prob_under_25) > 0.01 else 99.0
+odds_under_35 = round((1.0 / (prob_under_35 + 0.02)) * 0.95, 2) if prob_under_35 > 0.01 else 99.0
 odds_dc_1x = round((1.0 / (prob_dc_1x + 0.02)) * 0.95, 2) if prob_dc_1x > 0.01 else 99.0
 odds_dc_x2 = round((1.0 / (prob_dc_x2 + 0.02)) * 0.95, 2) if prob_dc_x2 > 0.01 else 99.0
-odds_dnb_1 = round((1.0 / (prob_dnb_1 + 0.02)) * 0.95, 2) if prob_dnb_1 > 0.01 else 99.0
-odds_dnb_2 = round((1.0 / (prob_dnb_2 + 0.02)) * 0.95, 2) if prob_dnb_2 > 0.01 else 99.0
 
 st.markdown("---")
-st.subheader("📊 Berechnete Wahrscheinlichkeiten & Live-Mindestquoten")
-
-# Übersichtliche Live-Tabelle für das iPad erstellen
+st.subheader("📊 Berechnete Live-Mindestquoten")
 quoten_daten = {
-    "Wettmarkt / Tipp": [
-        f"Sieg {heim_name} (1)", "Unentschieden (X)", f"Sieg {auswaerts_name} (2)",
-        "Beide treffen: JA", "Beide treffen: NEIN",
-        "Tore: Unter 2,5", "Tore: Über 2,5",
-        "Doppelte Chance: 1X", "Doppelte Chance: X2",
-        f"Draw No Bet: {heim_name}", f"Draw No Bet: {auswaerts_name}"
-    ],
-    "Wahrscheinlichkeit": [
-        f"{prob_home*100:.1f}%", f"{prob_draw*100:.1f}%", f"{prob_away*100:.1f}%",
-        f"{prob_btts_yes*100:.1f}%", f"{(1-prob_btts_yes)*100:.1f}%",
-        f"{prob_under_25*100:.1f}%", f"{(1-prob_under_25)*100:.1f}%",
-        f"{prob_dc_1x*100:.1f}%", f"{prob_dc_x2*100:.1f}%",
-        f"{prob_dnb_1*100:.1f}%", f"{prob_dnb_2*100:.1f}%"
-    ],
-    "Faire Live-Quote (Mindest-Quote)": [
-        f"{odds_1:.2f}", f"{odds_x:.2f}", f"{odds_2:.2f}",
-        f"{odds_btts_yes:.2f}", f"{odds_btts_no:.2f}",
-        f"{odds_under_25:.2f}", f"{odds_over_25:.2f}",
-        f"{odds_dc_1x:.2f}", f"{odds_dc_x2:.2f}",
-        f"{odds_dnb_1:.2f}", f"{odds_dnb_2:.2f}"
-    ]
+    "Wettmarkt / Tipp": [f"Sieg {heim_name} (1)", "Unentschieden (X)", f"Sieg {auswaerts_name} (2)", "BTTS: JA", "BTTS: NEIN", "Unter 2,5", "Über 2,5", "Doppelte Chance 1X", "Doppelte Chance X2"],
+    "Wahrscheinlichkeit": [f"{prob_home*100:.1f}%", f"{prob_draw*100:.1f}%", f"{prob_away*100:.1f}%", f"{prob_btts_yes*100:.1f}%", f"{(1-prob_btts_yes)*100:.1f}%", f"{prob_under_25*100:.1f}%", f"{(1-prob_under_25)*100:.1f}%", f"{prob_dc_1x*100:.1f}%", f"{prob_dc_x2*100:.1f}%"],
+    "Mindest-Quote": [f"{odds_1:.2f}", f"{odds_x:.2f}", f"{odds_2:.2f}", f"{odds_btts_yes:.2f}", f"{odds_btts_no:.2f}", f"{odds_under_25:.2f}", f"{odds_over_25:.2f}", f"{odds_dc_1x:.2f}", f"{odds_dc_x2:.2f}"]
 }
-df_quoten = pd.DataFrame(quoten_daten)
-st.table(df_quoten)
+st.table(pd.DataFrame(quoten_daten))
 
-# Wörterbuch für den automatischen Value-Finder
-bookie_odds_all = {
-    f'Sieg {heim_name} (1)': {'prob': prob_home, 'odds': odds_1, 'bookie': 'Winamax'},
-    f'Sieg {auswaerts_name} (2)': {'prob': prob_away, 'odds': odds_2, 'bookie': 'Betano'},
-    'Unentschieden (X)': {'prob': prob_draw, 'odds': odds_x, 'bookie': 'Interwetten'},
-    'Unter 2,5 Tore': {'prob': prob_under_25, 'odds': odds_under_25, 'bookie': 'Interwetten'},
-    'Über 2,5 Tore': {'prob': (1 - prob_under_25), 'odds': odds_over_25, 'bookie': 'Betano'},
-    'Beide treffen: JA': {'prob': prob_btts_yes, 'odds': odds_btts_yes, 'bookie': 'Winamax'},
-    'Doppelte Chance 1X': {'prob': prob_dc_1x, 'odds': odds_dc_1x, 'bookie': 'Interwetten'},
-    f'Draw No Bet {heim_name}': {'prob': prob_dnb_1, 'odds': odds_dnb_1, 'bookie': 'Winamax'}
-}
-
-max_value = -1.0
-best_market = None
-best_odds_val = 0.0
-best_bookie_val = ""
-
-for market, data in bookie_odds_all.items():
-    value = (data['prob'] * data['odds']) - 1
-    if value > max_value:
-        max_value = value
-        best_market = market
-        best_odds_val = data['odds']
-        best_bookie_val = data['bookie']
-
+# 🛠️ INTELLIGENTER KOMBIWETTEN-KONFIGURATOR (8-SÄULEN-KORRELATION)
 st.markdown("---")
-st.subheader("🔥 Live-Wetten Tipp-Vorschlag")
+st.header("🔥 Sinnvollste Kombi-Konfigurationen (Spielfeld-Kombis)")
 
-if live_minute > 85:
-    st.warning("⚠️ Ab Minute 85 wird kein neuer automatischer Tipp mehr empfohlen (Risiko-Overlay).")
-elif max_value > min_value_margin:
-    raw_kelly = max_value / (best_odds_val - 1) if best_odds_val > 1 else 0.0
-    final_stake_pct = min(raw_kelly * kelly_fraction, max_cap)
-    stake_euro = bankrolls[best_bookie_val] * final_stake_pct
-    
-    st.success(f"🎯 **LIVE-TIPP EMPFOHLEN:** Wette auf **{best_market}**")
-    st.info(f"💵 **Einsatz:** {final_stake_pct*100:.2f}% vom **{best_bookie_val}**-Konto = **{stake_euro:.2f}€** (Live-Vorteil: +{max_value*100:.1f}%)")
+# Logik für Sicherheits-Kombi (Wählt die stabilste DC + Torabsicherung)
+if prob_dc_1x > prob_dc_x2:
+    safe_dc = f"Doppelte Chance 1X ({heim_name})"
+    safe_dc_odds = odds_dc_1x
+    safe_dc_prob = prob_dc_1x
 else:
-    st.error(f"❌ **KEIN LIVE-VALUE:** Der Markt bietet aktuell keinen ausreichenden Vorteil.")
+    safe_dc = f"Doppelte Chance X2 ({auswaerts_name})"
+    safe_dc_odds = odds_dc_x2
+    safe_dc_prob = prob_dc_x2
+
+safe_tor = "Unter 3,5 Tore" if prob_under_35 > 0.50 else "Über 1,5 Tore"
+safe_tor_odds = odds_under_35 if prob_under_35 > 0.50 else 1.25
+safe_kombi_odds = round(safe_dc_odds * safe_tor_odds * 0.85, 2) # 15% Korrelations-Abschlag für Konfigurator
+
+# Logik für Value-Kombi (Kombiniert den stärksten Trend mit Toranzahl oder BTTS)
+if prob_home > prob_away and prob_home > prob_draw:
+    value_trend = f"Sieg {heim_name}"
+    value_trend_odds = odds_1
+    value_trend_prob = prob_home
+    value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
+    value_tor_odds = odds_under_35 if prob_under_25 > 0.45 else 1.25
+elif prob_away > prob_home and prob_away > prob_draw:
+    value_trend = f"Sieg {auswaerts_name}"
+    value_trend_odds = odds_2
+    value_trend_prob = prob_away
+    value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
+    value_tor_odds = odds_under_35 if prob_under_25 > 0.45 else 1.25
+else:
+    value_trend = "Unentschieden (X)"
+    value_trend_odds = odds_x
+    value_trend_prob = prob_draw
+    value_tor = "Unter 2,5 Tore"
+    value_tor_odds = odds_under_25
+
+value_kombi_odds = round(value_trend_odds * value_tor_odds * 0.88, 2)
+
+# Logik für Risiko-Kombi (High Return)
+if prob_btts_yes > 0.50:
+    risiko_tipp = "Beide treffen: JA"
+    risiko_odds = odds_btts_yes
+else:
+    risiko_tipp = "Beide treffen: NEIN"
+    risiko_odds = odds_btts_no
+    
+risiko_trend_odds = odds_1 if prob_home > prob_away else odds_2
+risiko_trend_name = heim_name if prob_home > prob_away else auswaerts_name
+risiko_kombi_odds = round(risiko_trend_odds * risiko_odds * 0.80, 2)
+
+# Gewinnausgabe auf dem Dashboard
+c_safe, c_val, c_risk = st.columns(3)
+
+with c_safe:
+    st.success("🛡️ **1. Sicherheits-Kombi**")
+    st.markdown(f"* **{safe_dc}**\n* **{safe_tor}**")
+    st.markdown(f"📈 Mindest-Gesamtquote: **{safe_kombi_odds:.2f}**")
+    st.caption("Perfekt für das Absichern im Money Race bei Interwetten.")
+
+with c_val:
+    st.info("⚡ **2. Value-Kombi**")
+    st.markdown(f"* **{value_trend}**\n* **{value_tor}**")
+    st.markdown(f"📈 Mindest-Gesamtquote: **{value_kombi_odds:.2f}**")
+    st.caption("Die mathematisch beste Option basierend auf Säule 1 & 2.")
+
+with c_risk:
+    st.error("💥 **3. Ergebnis-Kombi**")
+    st.markdown(f"* **Sieg {risiko_trend_name}**\n* **{risiko_tipp}**")
+    st.markdown(f"📈 Mindest-Gesamtquote: **{risiko_kombi_odds:.2f}**")
+    st.caption("Hohe Quote für Winamax – nur bei klarem Vorteil anspielen.")
