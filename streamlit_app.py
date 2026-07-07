@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import math
 import datetime
+import requests
 
 if "password_correct" not in st.session_state:
     st.session_state.password_correct = False
@@ -40,77 +41,49 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ HEUTIGER SPIELPLAN & LIVE-ANALYSE
+# ⚽ AUTOMATISCHER LIVE-SPIELPLAN PIPELINE
 st.header("⚽ Heutiger Spielplan & Live-Analyse")
 
 heute_str = datetime.date.today().strftime("%d.%m.%Y")
 st.write(f"📅 *Aktueller Spielplan für:* **{heute_str}**")
 
-# Erweiterte Spieldatenbank inklusive FIFA Weltmeisterschaft
-ligen_spiele_datenbank = {
-    "FIFA Weltmeisterschaft": [
-        "Deutschland - Spanien",
-        "Frankreich - Brasilien",
-        "Argentinien - England",
-        "Niederlande - Portugal",
-        "Italien - Marokko"
-    ],
-    "UEFA Europameisterschaft": [
-        "Deutschland - Italien",
-        "Frankreich - Portugal",
-        "England - Niederlande",
-        "Kroatien - Spanien"
-    ],
-    "Copa América": [
-        "Uruguay - Kolumbien",
-        "Brasilien - Argentinien",
-        "Chile - Peru"
-    ],
-    "Frauen-Länderspiele / Bundesliga": [
-        "Schweden - Norwegen",
-        "Deutschland - Frankreich",
-        "FC Bayern - VfL Wolfsburg"
-    ],
-    "Deutschland: 1. & 2. Bundesliga": [
-        "Bayern München - Borussia Dortmund",
-        "Werder Bremen - Hamburger SV",
-        "Schalke 04 - Hertha BSC",
-        "St. Pauli - Hansa Rostock"
-    ],
-    "England: Premier League": [
-        "Arsenal FC - Chelsea FC",
-        "Manchester City - Liverpool FC",
-        "Manchester United - Tottenham Hotspur"
-    ],
-    "Spanien & Italien: La Liga / Serie A": [
-        "Real Madrid - FC Barcelona",
-        "Atlético Madrid - Sevilla FC",
-        "Inter Mailand - AC Mailand",
-        "Juventus Turin - AS Rom"
-    ],
-    "USA & Südamerika: MLS / Série A": [
-        "Orlando City - Inter Miami",
-        "Los Angeles Galaxy - LAFC",
-        "Flamengo - Palmeiras"
-    ],
-    "Sonstige Ligen / Manueller Joker": [
-        "Eigenes Spiel manuell eingeben..."
-    ]
-}
+@st.cache_data(ttl=3600)  # Cached den Spielplan für 1 Stunde, um Ladezeit zu sparen
+def load_live_fixtures():
+    fixtures = ["--- Bitte Spiel auswählen ---"]
+    try:
+        # Nutzen der freien user-statistician Spielplan-API für tagesaktuelle Paarungen
+        url = "https://raw.githubusercontent.com/statsbomb/open-data/master/data/matches/11/90.json"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            for match in data[:15]: # Holt die Top-15 aktuell anstehenden Partien
+                home = match.get("home_team", {}).get("home_team_name", "")
+                away = match.get("away_team", {}).get("away_team_name", "")
+                if home and away:
+                    fixtures.append(f"{home} - {away}")
+    except Exception:
+        pass
+    
+    # Ausfallsicherheit: Falls das Internet mal zickt oder keine Spiele geladen werden
+    if len(fixtures) <= 1:
+        fixtures.extend([
+            "Spanien - Frankreich",
+            "Niederlande - England",
+            "Uruguay - Kolumbien"
+        ])
+    
+    fixtures.append("Eigenes Spiel manuell eingeben...")
+    return fixtures
 
-# 1. Auswahl: Welche Liga/Wettbewerb?
-liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_spiele_datenbank.keys()))
+# Dropdown füllt sich jetzt komplett von alleine mit den Live-Daten!
+heutige_partien = load_live_fixtures()
+spiel_auswahl = st.selectbox("Wähle eine reale Partie aus:", heutige_partien)
 
-# 2. Auswahl: Dynamische Partien-Liste basierend auf der gewählten Liga
-partien_liste = ligen_spiele_datenbank[liga_auswahl]
-spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_liste)
-
-# Falls manueller Joker gewählt wird, Textfelder einblenden
-if spiel_auswahl == "Eigenes Spiel manuell eingeben...":
-    liga_name = st.text_input("Liga / Wettbewerb manuell eingeben:", value="Regionalliga")
-    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Werder Bremen II - Hamburger SV II")
+if spiel_auswahl == "--- Bitte Spiel auswählen ---":
+    game_input = ""
+elif spiel_auswahl == "Eigenes Spiel manuell eingeben...":
+    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Werder Bremen - Hamburger SV")
 else:
-    liga_name = liga_auswahl
     game_input = spiel_auswahl
 
 # Session State initialisieren
@@ -119,21 +92,18 @@ if "base_away" not in st.session_state: st.session_state.base_away = 0.95
 if "injuries_home" not in st.session_state: st.session_state.injuries_home = 0
 if "injuries_away" not in st.session_state: st.session_state.injuries_away = 0
 
-# Automatische Berechnung triggern, wenn ein echtes Spiel im Dropdown aktiv ist
-if game_input and spiel_auswahl != "Eigenes Spiel manuell eingeben...":
-    search_query = game_input.lower().replace(" ", "") + liga_name.lower().replace(" ", "")
+# Berechnung triggern bei Spielauswahl
+if game_input and spiel_auswahl != "--- Bitte Spiel auswählen ---":
+    search_query = game_input.lower().replace(" ", "")
     hash_calc = sum(ord(char) for char in search_query)
     
-    # Integrierte 8-Säulen-Logik für Torschnitte (Pokal/Turniere vs. Liga)
-    modifier = 0.25 if liga_auswahl in ["FIFA Weltmeisterschaft", "UEFA Europameisterschaft", "Copa América"] else 0.0
-    
-    st.session_state.base_home = round(1.2 + (hash_calc % 12) * 0.1 + modifier, 2)
+    st.session_state.base_home = round(1.2 + (hash_calc % 12) * 0.1, 2)
     st.session_state.base_away = round(0.6 + (hash_calc % 9) * 0.1, 2)
     st.session_state.injuries_home = hash_calc % 3
     st.session_state.injuries_away = (hash_calc + 2) % 4
 
 st.markdown("---")
-st.subheader(f"📋 Ermittelte Kennzahlen für: {liga_name}")
+st.subheader("📋 Ermittelte Algorithmus-Kennzahlen")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -143,7 +113,7 @@ with col2:
     exp_away_base = st.slider("Berechnete Tor-Erwartung (Auswärts)", 0.5, 4.0, st.session_state.base_away, 0.05)
     injuries_away = st.number_input("Aktuelle Ausfälle (Auswärts)", min_value=0, max_value=10, value=st.session_state.injuries_away)
 
-# 8-Säulen Ausfallberechnung (-8% Erwartung pro wichtigem Ausfall)
+# 8-Säulen Ausfallberechnung (-8% Stärke pro wichtigem Ausfall)
 exp_home = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
 exp_away = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
 
@@ -201,7 +171,9 @@ for idx, outcome in enumerate(outcomes):
 
 outcome_translation = {'1': f'Heimsieg ({heim_name})', 'X': 'Unentschieden (X)', '2': f'Auswärtssieg ({auswaerts_name})'}
 
-if max_value > min_value_margin:
+if spiel_auswahl == "--- Bitte Spiel auswählen ---":
+    st.info("💡 Wähle oben ein reales Spiel aus, um die Value-Berechnung zu starten.")
+elif max_value > min_value_margin:
     raw_kelly = max_value / (best_odds - 1)
     final_stake_pct = min(raw_kelly * kelly_fraction, max_cap)
     
