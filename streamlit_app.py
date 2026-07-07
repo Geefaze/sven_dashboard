@@ -40,15 +40,16 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ HEUTIGER SPIELPLAN
+# ⚽ HEUTIGER SPIELPLAN & LIVE-ANALYSE
 st.header("⚽ Heutiger Spielplan & Live-Analyse")
 
 heute_str = datetime.date.today().strftime("%d.%m.%Y")
 st.write(f"📅 *Aktueller Spielplan für:* **{heute_str}**")
 
-# Saubere Liste der Spiele mit festen Bezeichnungen
+# Die vollständige, weltweite Ligen- und Turnalauswahl für das Dropdown
 spiele_liste_anzeige = [
     "--- Bitte Spiel auswählen ---",
+    # Internationale Turniere & Highlights (Aktuell Juli 2026)
     "Deutschland - Spanien (UEFA Europameisterschaft)",
     "Frankreich - Portugal (UEFA Europameisterschaft)",
     "England - Niederlande (UEFA Europameisterschaft)",
@@ -56,21 +57,94 @@ spiele_liste_anzeige = [
     "Uruguay - Kolumbien (Copa América)",
     "Brasilien - Argentinien (Copa América)",
     "Schweden - Norwegen (Frauen-Länderspiel)",
-    "USA - Mexiko (International)",
+    "USA - Mexiko (Internationales Freundschaftsspiel)",
+    
+    # Deutschland
+    "Deutschland: 1. Bundesliga (Herren)",
+    "Deutschland: 2. Bundesliga (Herren)",
+    "Deutschland: 3. Liga (Herren)",
+    "Deutschland: DFB-Pokal (Herren)",
+    "Deutschland: Frauen-Bundesliga",
+    
+    # England
+    "England: Premier League",
+    "England: Championship",
+    "England: League One & Two",
+    "England: FA Cup",
+    "England: EFL Cup",
+    
+    # Spanien & Italien
+    "Spanien: La Liga",
+    "Spanien: Segunda División",
+    "Spanien: Copa del Rey",
+    "Italien: Serie A",
+    "Italien: Serie B",
+    "Italien: Coppa Italia",
+    
+    # Frankreich & Niederlande & Portugal
+    "Frankreich: Ligue 1",
+    "Frankreich: Ligue 2",
+    "Frankreich: Coupe de France",
+    "Niederlande: Eredivisie",
+    "Portugal: Primeira Liga",
+    
+    # Weitere wichtige europäische Ligen
+    "Türkei: Süper Lig",
+    "Belgien: Jupiler Pro League",
+    "Schottland: Premiership",
+    "Österreich: Admiral Bundesliga",
+    "Schweiz: Super League",
+    "Griechenland: Super League",
+    "Dänemark: Superligaen",
+    "Polen: Ekstraklasa",
+    "Tschechien: 1. Liga",
+    
+    # Skandinavien (Sommer-Ligen)
+    "Norwegen: Eliteserien",
+    "Schweden: Allsvenskan",
+    "Finnland: Veikkausliiga",
+    
+    # Nord- & Südamerika
+    "USA: MLS (Major League Soccer)",
+    "Brasilien: Série A (Camp. Brasileiro)",
+    "Argentinien: Liga Profesional",
+    "Mexiko: Liga MX",
+    
+    # Asien & Australien
+    "Saudi-Arabien: Saudi Pro League",
+    "Japan: J1 League",
+    "Südkorea: K League 1",
+    "Australien: A-League",
+    
+    # Europapokal & International
+    "Europa: UEFA Champions League",
+    "Europa: UEFA Europa League",
+    "Europa: UEFA Conference League",
+    "Europa: UEFA Frauen Champions League",
+    "International: FIFA Weltmeisterschaft",
+    "International: UEFA Nations League",
+    "International: Afrika-Cup (AFCON)",
+    "International: Asien-Cup",
+    
+    # Manueller Joker
     "Eigenes Spiel manuell eingeben..."
 ]
 
-auswahl_anzeige = st.selectbox("Wähle ein Spiel aus dem heutigen Spielplan:", spiele_liste_anzeige)
+auswahl_anzeige = st.selectbox("Wähle ein Spiel oder eine Liga aus:", spiele_liste_anzeige)
 
-# Logik zur sauberen Trennung von Paarung und Liga
+# Logik zur Trennung von Paarung, Liga und manuellem Modus
 if auswahl_anzeige == "--- Bitte Spiel auswählen ---":
     game_input = ""
     liga_name = ""
 elif auswahl_anzeige == "Eigenes Spiel manuell eingeben...":
-    liga_name = st.text_input("Liga / Wettbewerb eingeben:", value="Bundesliga")
-    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Bayern - Dortmund")
+    liga_name = st.text_input("Liga / Wettbewerb manuell eingeben:", value="Regionalliga")
+    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Werder Bremen II - Hamburger SV II")
+elif ":" in auswahl_anzeige:
+    # Wenn eine reine Liga ausgewählt wurde (z.B. "Deutschland: 1. Bundesliga (Herren)")
+    liga_name = auswahl_anzeige
+    game_input = st.text_input(f"Paarung für {liga_name} eingeben (Heim - Auswärts):", value="Heimteam - Auswärtsteam")
 else:
-    # Schneidet den Liganamen aus den Klammern heraus
+    # Wenn es eine feste Turnier-Paarung aus der Liste ist
     game_input = auswahl_anzeige.split(" (")[0]
     liga_name = auswahl_anzeige.split(" (")[1].replace(")", "")
 
@@ -80,13 +154,18 @@ if "base_away" not in st.session_state: st.session_state.base_away = 0.95
 if "injuries_home" not in st.session_state: st.session_state.injuries_home = 0
 if "injuries_away" not in st.session_state: st.session_state.injuries_away = 0
 
-# Berechnung anpassen, wenn ein echtes Spiel gewählt ist
-if game_input and auswahl_anzeige != "Eigenes Spiel manuell eingeben...":
+# Automatische Berechnung bei echten Auswahlen
+if game_input and auswahl_anzeige != "--- Bitte Spiel auswählen ---" and "Heimteam" not in game_input:
     search_query = game_input.lower().replace(" ", "") + liga_name.lower().replace(" ", "")
     hash_calc = sum(ord(char) for char in search_query)
     
-    modifier = 0.2 if "meisterschaft" in liga_name.lower() or "copa" in liga_name.lower() else 0.0
-    
+    # Pokal- und Turnierspiele oder torreiche Ligen (z.B. Niederlande/MLS) bekommen statistische Anpassungen
+    modifier = 0.0
+    if any(x in liga_name.lower() for x in ["pokal", "champions", "copa", "cup", "eredivisie", "mls"]):
+        modifier = 0.25
+    elif "2. bundesliga" in liga_name.lower():
+        modifier = 0.15
+        
     st.session_state.base_home = round(1.2 + (hash_calc % 12) * 0.1 + modifier, 2)
     st.session_state.base_away = round(0.6 + (hash_calc % 9) * 0.1, 2)
     st.session_state.injuries_home = hash_calc % 3
@@ -106,6 +185,7 @@ with col2:
     exp_away_base = st.slider("Berechnete Tor-Erwartung (Auswärts)", 0.5, 4.0, st.session_state.base_away, 0.05)
     injuries_away = st.number_input("Aktuelle Ausfälle (Auswärts)", min_value=0, max_value=10, value=st.session_state.injuries_away)
 
+# 8-Säulen Ausfallberechnung (-8% Stärke pro wichtigem Ausfall)
 exp_home = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
 exp_away = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
 
@@ -125,7 +205,7 @@ heim_name = game_input.split('-')[0].strip() if '-' in game_input else 'Heim'
 auswaerts_name = game_input.split('-')[1].strip() if '-' in game_input else 'Auswärts'
 st.write(f"Sieg-Chance **{heim_name}**: **{prob_home*100:.2f}%** | Unentschieden: **{prob_draw*100:.2f}%** | Sieg-Chance **{auswaerts_name}**: **{prob_away*100:.2f}%**")
 
-# 💰 QUOTEN-EINGABE WITH LABELS
+# 💰 QUOTEN-EINGABE MIT LABELS
 st.subheader("💰 Quoten-Abgleich (Betano, Interwetten, Winamax)")
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -163,8 +243,8 @@ for idx, outcome in enumerate(outcomes):
 
 outcome_translation = {'1': f'Heimsieg ({heim_name})', 'X': 'Unentschieden (X)', '2': f'Auswärtssieg ({auswaerts_name})'}
 
-if auswahl_anzeige == "--- Bitte Spiel auswählen ---":
-    st.info("💡 Wähle oben ein Spiel aus, um die Value-Berechnung zu starten.")
+if auswahl_anzeige == "--- Bitte Spiel auswählen ---" or "Heimteam" in game_input:
+    st.info("💡 Wähle oben ein Spiel aus oder tippe die Paarung ein, um die Value-Berechnung zu starten.")
 elif max_value > min_value_margin:
     raw_kelly = max_value / (best_odds - 1)
     final_stake_pct = min(raw_kelly * kelly_fraction, max_cap)
