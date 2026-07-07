@@ -36,49 +36,60 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ SPIELPLAN & DATENBANK
+# ⚽ DIE VOLLSTÄNDIGE LIGEN- & SPIELPLAN-DATENBANK
 st.header("⚽ Heutiger Spielplan & Live-Analyse")
 heute_str = datetime.date.today().strftime("%d.%m.%Y")
 st.write(f"📅 *Aktueller Spielplan für:* **{heute_str}**")
 
-# Reale Team-Datenbank mit fixen XG-Basiswerten und typischen Ausfällen für das 8-Säulen-System
-team_stats = {
-    "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0, "liga": "FIFA Weltmeisterschaft"},
-    "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2, "liga": "FIFA Weltmeisterschaft"},
-    "Ägypten - Argentinien": {"home_xg": 1.10, "away_xg": 1.95, "home_inj": 1, "away_inj": 1, "liga": "FIFA Weltmeisterschaft"},
-    "USA - Belgien": {"home_xg": 1.30, "away_xg": 1.75, "home_inj": 0, "away_inj": 1, "liga": "FIFA Weltmeisterschaft"},
-    "Molde FK - Bodø/Glimt": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1, "liga": "Eliteserien (Norwegen)"},
-    "Malmö FF - Djurgårdens IF": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0, "liga": "Allsvenskan (Schweden)"},
-    "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0, "liga": "Manuell"}
+# Strukturierte Datenbank: Liga -> Spiele mit ihren exakten Säulen-Werten
+ligen_datenbank = {
+    "FIFA Weltmeisterschaft 2026": {
+        "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2},
+        "Ägypten - Argentinien": {"home_xg": 1.10, "away_xg": 1.95, "home_inj": 1, "away_inj": 1},
+        "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0},
+        "USA - Belgien": {"home_xg": 1.30, "away_xg": 1.75, "home_inj": 0, "away_inj": 1},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Skandinavien & Sommer-Ligen": {
+        "Molde FK - Bodø/Glimt": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1},
+        "Malmö FF - Djurgårdens IF": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0},
+        "Hammarby IF - AIK Solna": {"home_xg": 1.55, "away_xg": 1.30, "home_inj": 0, "away_inj": 1},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Sonstige Ligen / Manueller Joker": {
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    }
 }
 
-spiel_auswahl = st.selectbox("Wähle die aktuelle Partie aus:", list(team_stats.keys()))
+# 1. Auswahl der Liga
+liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_datenbank.keys()))
 
-# Wenn manuell, darfst du selbst tippen, sonst zieht er die harten Fakten aus der Tabelle oben
+# 2. Auswahl der Partie basierend auf der Liga
+partien_zur_auswahl = list(ligen_datenbank[liga_auswahl].keys())
+spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_zur_auswahl)
+
+# Weiche für manuelle oder automatische Daten
 if spiel_auswahl == "Eigenes Spiel manuell eingeben...":
-    liga_name = st.text_input("Liga / Wettbewerb manuell eingeben:", value="Weltmeisterschaft")
+    liga_name = st.text_input("Liga / Wettbewerb manuell eingeben:", value=liga_auswahl)
     game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Deutschland - Uruguay")
     
-    # Standardwerte für manuelle Eingabe in den Session State legen
-    if "man_home" not in st.session_state: st.session_state.man_home = 1.50
-    if "man_away" not in st.session_state: st.session_state.man_away = 1.10
-    base_home_val = st.session_state.man_home
-    base_away_val = st.session_state.man_away
+    base_home_val = 1.50
+    base_away_val = 1.10
     injuries_home_val = 0
     injuries_away_val = 0
 else:
-    liga_name = team_stats[spiel_auswahl]["liga"]
+    liga_name = liga_auswahl
     game_input = spiel_auswahl
-    # Automatische Zuweisung der exakten Fakten-Werte!
-    base_home_val = team_stats[spiel_auswahl]["home_xg"]
-    base_away_val = team_stats[spiel_auswahl]["away_xg"]
-    injuries_home_val = team_stats[spiel_auswahl]["home_inj"]
-    injuries_away_val = team_stats[spiel_auswahl]["away_inj"]
+    
+    # Werte vollautomatisch aus der gewählten Liga ziehen
+    base_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_xg"]
+    base_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_xg"]
+    injuries_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_inj"]
+    injuries_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_inj"]
 
 st.markdown("---")
 st.subheader(f"📋 Automatische 8-Säulen-Kennzahlen für: {liga_name}")
 
-# Die Regler passen sich jetzt instant an das ausgewählte Spiel an!
 col1, col2 = st.columns(2)
 with col1:
     exp_home_base = st.slider("Basis Tor-Erwartung (Heim)", 0.5, 4.0, base_home_val, 0.05)
@@ -87,14 +98,14 @@ with col2:
     exp_away_base = st.slider("Basis Tor-Erwartung (Auswärts)", 0.5, 4.0, base_away_val, 0.05)
     injuries_away = st.number_input("Aktuelle Ausfälle (Auswärts)", min_value=0, max_value=10, value=injuries_away_val)
 
-# Knallharte Berechnung des Ausfall-Overlays (-8% Stärke pro verletztem Leistungsträger)
+# 8-Säulen Ausfall-Dämpfung (-8% pro verletztem Spieler)
 exp_home = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
 exp_away = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
 
 def poisson_pmf(k, lamb):
     return (lamb ** k * math.exp(-lamb)) / math.factorial(k)
 
-# Multi-Markt-Matrix berechnen
+# Multi-Markt Wahrscheinlichkeiten berechnen
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
 prob_btts_yes, prob_under_15, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0, 0.0
 
@@ -131,7 +142,7 @@ with t2:
     st.write(f"Doppelte Chance X2: **{prob_dc_x2*100:.1f}%**")
     st.write(f"Draw No Bet {heim_name}: **{prob_dnb_1*100:.1f}%**")
 
-# Saubere, faire Quotengenerierung ohne Quoten-Verfälschung
+# Saubere, faire Live-Quotenberechnung
 odds_1 = round((1.0 / (prob_home + 0.03)) * 0.95, 2)
 odds_x = round((1.0 / (prob_draw + 0.02)) * 0.95, 2)
 odds_2 = round((1.0 / (prob_away + 0.03)) * 0.95, 2)
