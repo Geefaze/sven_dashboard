@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
+import math
 
 if "password_correct" not in st.session_state:
     st.session_state.password_correct = False
@@ -41,10 +41,14 @@ with col2:
 exp_home = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
 exp_away = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
 
+# Eigene Poisson-Funktion ohne scipy
+def poisson_pmf(k, lamb):
+    return (lamb ** k * math.exp(-lamb)) / math.factorial(k)
+
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
 for x in range(0, 11):
     for y in range(0, 11):
-        p = stats.poisson.pmf(x, exp_home) * stats.poisson.pmf(y, exp_away)
+        p = poisson_pmf(x, exp_home) * poisson_pmf(y, exp_away)
         if x > y: prob_home += p
         elif x == y: prob_draw += p
         else: prob_away += p
