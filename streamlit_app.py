@@ -18,7 +18,7 @@ if not st.session_state.password_correct:
             st.error("❌ Falsches Passwort!")
     st.stop()
 
-st.title("📊 Sven's 8-Pillar Betting Algorithm & Dashboard")
+st.title("📊 Sven's 8-Pillar Live-Betting Algorithm")
 
 # ⚙️ SYSTEMEINSTELLUNGEN
 st.sidebar.header("⚙️ Systemeinstellungen")
@@ -36,12 +36,11 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ DIE VOLLSTÄNDIGE LIGEN- & SPIELPLAN-DATENBANK
-st.header("⚽ Heutiger Spielplan & Live-Analyse")
+# ⚽ DIE SPIELPLAN-DATENBANK
+st.header("⚽ Live-Spielplan & Echtzeit-Ticker")
 heute_str = datetime.date.today().strftime("%d.%m.%Y")
 st.write(f"📅 *Aktueller Spielplan für:* **{heute_str}**")
 
-# Strukturierte Datenbank: Liga -> Spiele mit ihren exakten Säulen-Werten
 ligen_datenbank = {
     "FIFA Weltmeisterschaft 2026": {
         "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2},
@@ -53,42 +52,42 @@ ligen_datenbank = {
     "Skandinavien & Sommer-Ligen": {
         "Molde FK - Bodø/Glimt": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1},
         "Malmö FF - Djurgårdens IF": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0},
-        "Hammarby IF - AIK Solna": {"home_xg": 1.55, "away_xg": 1.30, "home_inj": 0, "away_inj": 1},
-        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
-    },
-    "Sonstige Ligen / Manueller Joker": {
         "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     }
 }
 
-# 1. Auswahl der Liga
 liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_datenbank.keys()))
-
-# 2. Auswahl der Partie basierend auf der Liga
 partien_zur_auswahl = list(ligen_datenbank[liga_auswahl].keys())
 spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_zur_auswahl)
 
-# Weiche für manuelle oder automatische Daten
 if spiel_auswahl == "Eigenes Spiel manuell eingeben...":
-    liga_name = st.text_input("Liga / Wettbewerb manuell eingeben:", value=liga_auswahl)
-    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Deutschland - Uruguay")
-    
-    base_home_val = 1.50
-    base_away_val = 1.10
-    injuries_home_val = 0
-    injuries_away_val = 0
+    liga_name = liga_auswahl
+    game_input = st.text_input("Manuelle Partie eingeben:", value="Deutschland - Uruguay")
+    base_home_val, base_away_val, injuries_home_val, injuries_away_val = 1.50, 1.10, 0, 0
 else:
     liga_name = liga_auswahl
     game_input = spiel_auswahl
-    
-    # Werte vollautomatisch aus der gewählten Liga ziehen
     base_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_xg"]
     base_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_xg"]
     injuries_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_inj"]
     injuries_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_inj"]
 
+# ⏱️ LIVE-TRACKER INTERFACE (Echtzeit-Eingabe)
 st.markdown("---")
-st.subheader(f"📋 Automatische 8-Säulen-Kennzahlen für: {liga_name}")
+st.subheader("⏱️ Live-Spielstand & Aktuelle Minute")
+c_min, c_gh, c_ga = st.columns(3)
+with c_min:
+    live_minute = st.number_input("Aktuelle Spielminute:", min_value=0, max_value=90, value=0, step=1)
+with c_gh:
+    live_goals_home = st.number_input("Tore HEIM aktuell:", min_value=0, max_value=10, value=0, step=1)
+with c_ga:
+    live_goals_away = st.number_input("Tore AUSWÄRTS aktuell:", min_value=0, max_value=10, value=0, step=1)
+
+# Berechne die verbleibende Restspielzeit
+restzeit_anteil = max((90.0 - live_minute) / 90.0, 0.0)
+
+st.markdown("---")
+st.subheader(f"📋 Berechnete Kennzahlen (Minute {live_minute})")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -98,69 +97,66 @@ with col2:
     exp_away_base = st.slider("Basis Tor-Erwartung (Auswärts)", 0.5, 4.0, base_away_val, 0.05)
     injuries_away = st.number_input("Aktuelle Ausfälle (Auswärts)", min_value=0, max_value=10, value=injuries_away_val)
 
-# 8-Säulen Ausfall-Dämpfung (-8% pro verletztem Spieler)
-exp_home = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
-exp_away = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
+# 8-Säulen Ausfall-Dämpfung
+exp_home_pre = max(exp_home_base * (1.0 - (injuries_home * 0.08)), 0.1)
+exp_away_pre = max(exp_away_base * (1.0 - (injuries_away * 0.08)), 0.1)
+
+# LIVE-DÄMPFUNG: Tor-Erwartung gilt nur noch für die verbleibende Restzeit!
+exp_home_live = exp_home_pre * restzeit_anteil
+exp_away_live = exp_away_pre * restzeit_anteil
 
 def poisson_pmf(k, lamb):
+    if lamb == 0 and k == 0: return 1.0
+    if lamb == 0 and k > 0: return 0.0
     return (lamb ** k * math.exp(-lamb)) / math.factorial(k)
 
-# Multi-Markt Wahrscheinlichkeiten berechnen
+# Berechnung der Resttore via Poisson
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
-prob_btts_yes, prob_under_15, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0, 0.0
+prob_btts_yes, prob_under_25 = 0.0, 0.0
 
 for x in range(0, 11):
     for y in range(0, 11):
-        p = poisson_pmf(x, exp_home) * poisson_pmf(y, exp_away)
-        if x > y: prob_home += p
-        elif x == y: prob_draw += p
+        p = poisson_pmf(x, exp_home_live) * poisson_pmf(y, exp_away_live)
+        
+        # Endstand berechnen: Aktuelle Tore + simulierte Resttore
+        end_home = live_goals_home + x
+        end_away = live_goals_away + y
+        
+        if end_home > end_away: prob_home += p
+        elif end_home == end_away: prob_draw += p
         else: prob_away += p
-        if x > 0 and y > 0: prob_btts_yes += p
-        if (x + y) < 1.5: prob_under_15 += p
-        if (x + y) < 2.5: prob_under_25 += p
-        if (x + y) < 3.5: prob_under_35 += p
+        
+        if end_home > 0 and end_away > 0: prob_btts_yes += p
+        if (end_home + end_away) < 2.5: prob_under_25 += p
 
 prob_dc_1x = prob_home + prob_draw
 prob_dc_x2 = prob_away + prob_draw
-prob_dnb_1 = prob_home / (1.0 - prob_draw) if prob_draw < 1 else 0.0
 
-st.subheader("📊 Berechnete Markt-Wahrscheinlichkeiten")
+st.subheader("📊 Echtzeit Live-Wahrscheinlichkeiten")
 heim_name = game_input.split('-')[0].strip() if '-' in game_input else 'Heim'
 auswaerts_name = game_input.split('-')[1].strip() if '-' in game_input else 'Auswärts'
 
 t1, t2 = st.columns(2)
 with t1:
-    st.markdown("**Hauptmärkte & Tore**")
-    st.write(f"Sieg {heim_name}: **{prob_home*100:.1f}%**")
-    st.write(f"Unentschieden: **{prob_draw*100:.2f}%**")
-    st.write(f"Sieg {auswaerts_name}: **{prob_away*100:.1f}%**")
-    st.write(f"Unter / Über 2,5: **{prob_under_25*100:.1f}%** / **{(1-prob_under_25)*100:.1f}%**")
+    st.write(f"Sieg **{heim_name}**: **{prob_home*100:.1f}%**")
+    st.write(f"🤝 Unentschieden: **{prob_draw*100:.1f}%**")
+    st.write(f"Sieg **{auswaerts_name}**: **{prob_away*100:.1f}%**")
 with t2:
-    st.markdown("**Absicherungen & BTTS**")
     st.write(f"Beide treffen (BTTS): **{prob_btts_yes*100:.1f}%**")
-    st.write(f"Doppelte Chance 1X: **{prob_dc_1x*100:.1f}%**")
-    st.write(f"Doppelte Chance X2: **{prob_dc_x2*100:.1f}%**")
-    st.write(f"Draw No Bet {heim_name}: **{prob_dnb_1*100:.1f}%**")
+    st.write(f"Unter 2,5 Tore: **{prob_under_25*100:.1f}%** / Über 2,5: **{(1-prob_under_25)*100:.1f}%**")
+    st.write(f"Doppelte Chance 1X: **{prob_dc_1x*100:.1f}%** | X2: **{prob_dc_x2*100:.1f}%**")
 
-# Saubere, faire Live-Quotenberechnung
-odds_1 = round((1.0 / (prob_home + 0.03)) * 0.95, 2)
-odds_x = round((1.0 / (prob_draw + 0.02)) * 0.95, 2)
-odds_2 = round((1.0 / (prob_away + 0.03)) * 0.95, 2)
-odds_btts = round((1.0 / (prob_btts_yes + 0.03)) * 0.95, 2)
-odds_u25 = round((1.0 / (prob_under_25 + 0.03)) * 0.95, 2)
-odds_o25 = round((1.0 / ((1 - prob_under_25) + 0.03)) * 0.95, 2)
-odds_dc1x = round((1.0 / (prob_dc_1x + 0.02)) * 0.95, 2)
-odds_dnb1 = round((1.0 / (prob_dnb_1 + 0.03)) * 0.95, 2)
+# Faire Live-Quoten basierend auf verbleibender Zeit berechnen
+odds_1 = round((1.0 / (prob_home + 0.02)) * 0.95, 2) if prob_home > 0 else 99.0
+odds_x = round((1.0 / (prob_draw + 0.02)) * 0.95, 2) if prob_draw > 0 else 99.0
+odds_2 = round((1.0 / (prob_away + 0.02)) * 0.95, 2) if prob_away > 0 else 99.0
+odds_u25 = round((1.0 / (prob_under_25 + 0.02)) * 0.95, 2) if prob_under_25 > 0 else 99.0
 
 bookie_odds_all = {
     f'Sieg {heim_name} (1)': {'prob': prob_home, 'odds': odds_1, 'bookie': 'Winamax'},
     f'Sieg {auswaerts_name} (2)': {'prob': prob_away, 'odds': odds_2, 'bookie': 'Betano'},
     'Unentschieden (X)': {'prob': prob_draw, 'odds': odds_x, 'bookie': 'Interwetten'},
-    'Beide treffen (BTTS: JA)': {'prob': prob_btts_yes, 'odds': odds_btts, 'bookie': 'Winamax'},
-    'Unter 2,5 Tore': {'prob': prob_under_25, 'odds': odds_u25, 'bookie': 'Interwetten'},
-    'Über 2,5 Tore': {'prob': (1 - prob_under_25), 'odds': odds_o25, 'bookie': 'Betano'},
-    'Doppelte Chance 1X': {'prob': prob_dc_1x, 'odds': odds_dc1x, 'bookie': 'Interwetten'},
-    f'Draw No Bet {heim_name}': {'prob': prob_dnb_1, 'odds': odds_dnb1, 'bookie': 'Winamax'}
+    'Unter 2,5 Tore': {'prob': prob_under_25, 'odds': odds_u25, 'bookie': 'Interwetten'}
 }
 
 max_value = -1.0
@@ -177,14 +173,16 @@ for market, data in bookie_odds_all.items():
         best_bookie_val = data['bookie']
 
 st.markdown("---")
-st.subheader("🔥 Bester Algorithmus Tipp-Vorschlag")
+st.subheader("🔥 Live-Wetten Tipp-Vorschlag")
 
-if max_value > min_value_margin:
+if live_minute > 85:
+    st.warning("⚠️ Ab Minute 85 wird kein neuer automatischer Tipp mehr empfohlen (Risiko-Overlay).")
+elif max_value > min_value_margin:
     raw_kelly = max_value / (best_odds_val - 1) if best_odds_val > 1 else 0.0
     final_stake_pct = min(raw_kelly * kelly_fraction, max_cap)
     stake_euro = bankrolls[best_bookie_val] * final_stake_pct
     
-    st.success(f"🎯 **TOP TIPP-EMPFEHLUNG:** Wette auf **{best_market}**")
-    st.info(f"💵 **Einsatz:** {final_stake_pct*100:.2f}% vom **{best_bookie_val}**-Konto = **{stake_euro:.2f}€** (Vorteil: +{max_value*100:.1f}%)")
+    st.success(f"🎯 **LIVE-TIPP EMPFOHLEN:** Wette auf **{best_market}**")
+    st.info(f"💵 **Einsatz:** {final_stake_pct*100:.2f}% vom **{best_bookie_val}**-Konto = **{stake_euro:.2f}€** (Live-Vorteil: +{max_value*100:.1f}%)")
 else:
-    st.error(f"❌ **KEIN VALUE GEFUNDEN:** Der Markt bietet aktuell keinen ausreichenden Vorteil. Spiel überspringen!")
+    st.error(f"❌ **KEIN LIVE-VALUE:** Die Buchmacher-Quoten haben sich perfekt angepasst. Aktuell kein mathematischer Vorteil.")
