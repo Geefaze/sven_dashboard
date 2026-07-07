@@ -36,7 +36,7 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ VOLLSTÄNDIGE ECHTE LIGEN-DATENBANK (STAND: JULI 2026)
+# ⚽ VOLLSTÄNDIGE ECHTE LIGEN-DATENBANK
 ligen_datenbank = {
     "FIFA Weltmeisterschaft 2026 (K.o.-Phase)": {
         "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2},
@@ -65,11 +65,8 @@ ligen_datenbank = {
     }
 }
 
-# 1. Auswahl der Liga
 st.header("⚽ Spielauswahl & Match-Modus")
 liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_datenbank.keys()))
-
-# 2. Auswahl der Partie basierend auf der Liga
 partien_zur_auswahl = list(ligen_datenbank[liga_auswahl].keys())
 spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_zur_auswahl)
 
@@ -91,7 +88,6 @@ else:
     injuries_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_inj"]
     injuries_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_inj"]
 
-# 🔥 DER MODUS-SCHALTER
 st.markdown("---")
 is_live_active = st.checkbox("🔥 Spiel läuft bereits (Live-Wetten-Modus einschalten)", value=False)
 
@@ -116,7 +112,6 @@ else:
     st.session_state.goals_away = 0
     st.info("📊 **PRE-MATCH-ANALYSE AKTIV:** Berechnung erfolgt für den Spielbeginn (0. Min | 0:0).")
 
-# Adaptive Tor-Erwartung & Restzeit
 gesamttore_aktuell = st.session_state.goals_home + st.session_state.goals_away
 restzeit_anteil = max((90.1 - live_minute) / 90.0, 0.02)
 
@@ -129,7 +124,6 @@ if is_live_active:
         base_home_val *= 1.10
         base_away_val *= 1.10
 
-# 8-Säulen Ausfall-Dämpfung
 exp_home_pre = max(base_home_val * (1.0 - (injuries_home_val * 0.08)), 0.1)
 exp_away_pre = max(base_away_val * (1.0 - (injuries_away_val * 0.08)), 0.1)
 
@@ -147,9 +141,9 @@ with col2:
 def poisson_pmf(k, lamb):
     return (lamb ** k * math.exp(-lamb)) / math.factorial(k)
 
-# Multi-Markt Berechnung
+# 📊 MULTI-MARKT BERECHNUNG (INKLUSIVE 1,5 TORE OVERLAY)
 prob_home, prob_draw, prob_away = 0.0, 0.0, 0.0
-prob_btts_yes, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0
+prob_btts_yes, prob_under_15, prob_under_25, prob_under_35 = 0.0, 0.0, 0.0, 0.0
 
 for x in range(0, 11):
     for y in range(0, 11):
@@ -161,6 +155,7 @@ for x in range(0, 11):
         elif end_home == end_away: prob_draw += p
         else: prob_away += p
         if end_home > 0 and end_away > 0: prob_btts_yes += p
+        if (end_home + end_away) < 1.5: prob_under_15 += p
         if (end_home + end_away) < 2.5: prob_under_25 += p
         if (end_home + end_away) < 3.5: prob_under_35 += p
 
@@ -174,12 +169,13 @@ def calculate_real_market_odds(prob, margin=0.05):
     if prob < 0.005: return 99.0
     return round((1.0 / prob) * (1.0 - margin), 2)
 
-# Quoten skalieren
 odds_1 = calculate_real_market_odds(prob_home)
 odds_x = calculate_real_market_odds(prob_draw)
 odds_2 = calculate_real_market_odds(prob_away)
 odds_btts_yes = calculate_real_market_odds(prob_btts_yes)
 odds_btts_no = calculate_real_market_odds(1.0 - prob_btts_yes)
+odds_under_15 = calculate_real_market_odds(prob_under_15)
+odds_over_15 = calculate_real_market_odds(1.0 - prob_under_15)
 odds_under_25 = calculate_real_market_odds(prob_under_25)
 odds_over_25 = calculate_real_market_odds(1.0 - prob_under_25)
 odds_dc_1x = calculate_real_market_odds(prob_dc_1x)
@@ -187,13 +183,30 @@ odds_dc_x2 = calculate_real_market_odds(prob_dc_x2)
 
 st.subheader("📊 Berechnete Live-Marktquoten (Betano / Interwetten / Winamax)")
 quoten_daten = {
-    "Wettmarkt / Tipp": [f"Sieg {heim_name} (1)", "Unentschieden (X)", f"Sieg {auswaerts_name} (2)", "BTTS: JA", "BTTS: NEIN", "Unter 2,5", "Über 2,5", "Doppelte Chance 1X", "Doppelte Chance X2"],
-    "Wahrscheinlichkeit": [f"{prob_home*100:.1f}%", f"{prob_draw*100:.1f}%", f"{prob_away*100:.1f}%", f"{prob_btts_yes*100:.1f}%", f"{(1-prob_btts_yes)*100:.1f}%", f"{prob_under_25*100:.1f}%", f"{(1-prob_under_25)*100:.1f}%", f"{prob_dc_1x*100:.1f}%", f"{prob_dc_x2*100:.1f}%"],
-    "Erwartete Quote": [f"{odds_1:.2f}", f"{odds_x:.2f}", f"{odds_2:.2f}", f"{odds_btts_yes:.2f}", f"{odds_btts_no:.2f}", f"{odds_under_25:.2f}", f"{odds_over_25:.2f}", f"{odds_dc_1x:.2f}", f"{odds_dc_x2:.2f}"]
+    "Wettmarkt / Tipp": [
+        f"Sieg {heim_name} (1)", "Unentschieden (X)", f"Sieg {auswaerts_name} (2)", 
+        "BTTS: JA", "BTTS: NEIN", 
+        "Unter 1,5 Tore", "Über 1,5 Tore", 
+        "Unter 2,5 Tore", "Über 2,5 Tore", 
+        "Doppelte Chance 1X", "Doppelte Chance X2"
+    ],
+    "Wahrscheinlichkeit": [
+        f"{prob_home*100:.1f}%", f"{prob_draw*100:.1f}%", f"{prob_away*100:.1f}%", 
+        f"{prob_btts_yes*100:.1f}%", f"{(1-prob_btts_yes)*100:.1f}%", 
+        f"{prob_under_15*100:.1f}%", f"{(1-prob_under_15)*100:.1f}%",
+        f"{prob_under_25*100:.1f}%", f"{(1-prob_under_25)*100:.1f}%", 
+        f"{prob_dc_1x*100:.1f}%", f"{prob_dc_x2*100:.1f}%"
+    ],
+    "Erwartete Quote": [
+        f"{odds_1:.2f}", f"{odds_x:.2f}", f"{odds_2:.2f}", 
+        f"{odds_btts_yes:.2f}", f"{odds_btts_no:.2f}", 
+        f"{odds_under_15:.2f}", f"{odds_over_15:.2f}",
+        f"{odds_under_25:.2f}", f"{odds_over_25:.2f}", 
+        f"{odds_dc_1x:.2f}", f"{odds_dc_x2:.2f}"
+    ]
 }
 st.table(pd.DataFrame(quoten_daten))
 
-# 🛠️ KOMBIWETTEN-KONFIGURATOR
 st.markdown("---")
 st.header("🔥 Sinnvollste Kombi-Konfigurationen (Spielfeld-Kombis)")
 
@@ -204,20 +217,21 @@ else:
     safe_dc_title = f"Doppelte Chance X2 ({auswaerts_name})"
     safe_dc_odds = odds_dc_x2
 
-safe_tor_title = "Unter 3,5 Tore" if prob_under_35 > 0.50 else "Über 1,5 Tore"
-safe_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_35 > 0.50 else 1.22
+# Nutzt jetzt dynamisch Über 1,5 Tore für die Sicherheitskombis, wenn die Wahrscheinlichkeit hoch ist
+safe_tor_title = "Unter 3,5 Tore" if prob_under_35 > 0.60 else "Über 1,5 Tore"
+safe_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_35 > 0.60 else odds_over_15
 safe_kombi_odds = round(safe_dc_odds * safe_tor_odds * 0.93, 2)
 
 if prob_home > prob_away and prob_home > prob_draw:
     value_trend = f"Sieg {heim_name}"
     value_trend_odds = odds_1
     value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
-    value_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_25 > 0.45 else 1.25
+    value_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_25 > 0.45 else odds_over_15
 elif prob_away > prob_home and prob_away > prob_draw:
     value_trend = f"Sieg {auswaerts_name}"
     value_trend_odds = odds_2
     value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
-    value_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_25 > 0.45 else 1.25
+    value_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_25 > 0.45 else odds_over_15
 else:
     value_trend = "Unentschieden (X)"
     value_trend_odds = odds_x
