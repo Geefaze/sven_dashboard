@@ -24,6 +24,10 @@ st.title("📊 Sven's 8-Pillar Live-Betting Algorithm")
 st.sidebar.header("⚙️ Systemeinstellungen")
 modus = st.sidebar.radio("Modus auswählen:", ["Herren-Fußball (Regulär)", "Frauen-Fußball (Strenges Overlay)"])
 
+# ⏰ ZEITZONEN-KORREKTUR (Holt den Server-Rückstand auf)
+st.sidebar.subheader("⏰ Zeitzonen-Korrektur")
+zeit_offset_stunden = st.sidebar.slider("Server-Zeitkorrektur (Stunden)", -5, 5, 2, help="Fügt Stunden hinzu, wenn der Server im Rückstand ist.")
+
 st.sidebar.subheader("💰 Bankrolls pro Konto")
 bankroll_betano = st.sidebar.number_input("Betano Guthaben (€)", min_value=0.0, value=26.21, step=5.0)
 bankroll_interwetten = st.sidebar.number_input("Interwetten Guthaben (€)", min_value=0.0, value=16.03, step=5.0)
@@ -36,10 +40,14 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ DYNAMISCHE LIGEN- & SPIELPLAN-DATENBANK
+# ⚽ LIVE-SPIELPLAN & ZEITANALYSE
 st.header("⚽ Live-Spielplan & Echtzeit-Zeitanalyse")
-jetzt = datetime.datetime.now()
-st.write(f"📅 *Aktuelle Systemzeit:* **{jetzt.strftime('%H:%M:%S')}**")
+
+# Berechne die korrigierte Live-Zeit (holt die 2 fehlenden Stunden vom Server auf)
+basis_zeit = datetime.datetime.now()
+jetzt = basis_zeit + datetime.timedelta(hours=zeit_offset_stunden)
+
+st.write(f"🖥️ *Server-Zeit (im Rückstand):* {basis_zeit.strftime('%H:%M:%S')} | 🎯 *Deine echte Live-Zeit:* **{jetzt.strftime('%H:%M:%S')}**")
 
 ligen_datenbank = {
     "FIFA Weltmeisterschaft 2026": {
@@ -80,11 +88,13 @@ else:
     
     stunde = ligen_datenbank[liga_auswahl][spiel_auswahl]["anstoss_stunde"]
     minute = ligen_datenbank[liga_auswahl][spiel_auswahl]["anstoss_minute"]
+    
     anstoss_zeit = jetzt.replace(hour=stunde, minute=minute, second=0, microsecond=0)
     
     if jetzt >= anstoss_zeit:
         vergangene_minuten = int((jetzt - anstoss_zeit).total_seconds() / 60)
         if vergangene_minuten > 45:
+            # Zieht 15 Minuten Pause ab
             berechnete_minute = min(vergangene_minuten - 15, 90)
         else:
             berechnete_minute = max(vergangene_minuten, 0)
@@ -109,26 +119,22 @@ with c_ga:
     if st.button("➖ Tor Auswärts", key="a_minus") and st.session_state.goals_away > 0: st.session_state.goals_away -= 1
     st.markdown(f"### **{st.session_state.goals_away}**")
 
-# 🧠 MATHEMATISCHE LIVE-ANPASSUNG DER TOR-ERWARTUNG
+# Adaptive Säulen-Anpassung der Tor-Erwartung
 gesamttore_aktuell = st.session_state.goals_home + st.session_state.goals_away
 restzeit_anteil = max((90.0 - live_minute) / 90.0, 0.0)
 
-# Wenn das Spiel fortgeschritten ist, aber keine Tore fallen, sinkt die generelle Tor-Erwartung (Taktik-Faktor)
 if live_minute > 25 and gesamttore_aktuell == 0:
-    # Reduziert die Basis-Erwartung progressiv um bis zu 25%, da die Teams defensiv agieren
     taktik_malus = max(1.0 - (live_minute / 180.0), 0.75)
     base_home_val *= taktik_malus
     base_away_val *= taktik_malus
 elif gesamttore_aktuell > 0:
-    # Ein frühes Tor öffnet das Spiel statistisch leicht (+10% Dynamik-Bonus)
     base_home_val *= 1.10
     base_away_val *= 1.10
 
-# 8-Säulen Ausfall-Dämpfung (-8% pro verletztem Spieler)
+# 8-Säulen Ausfall-Dämpfung
 exp_home_pre = max(base_home_val * (1.0 - (injuries_home_val * 0.08)), 0.1)
 exp_away_pre = max(base_away_val * (1.0 - (injuries_away_val * 0.08)), 0.1)
 
-# Skalierung auf die echte Restlaufzeit
 live_exp_home_calc = round(exp_home_pre * restzeit_anteil, 2)
 live_exp_away_calc = round(exp_away_pre * restzeit_anteil, 2)
 
@@ -138,10 +144,8 @@ st.subheader(f"📋 Berechnete Live-Erwartungswerte (Restzeit: {int(restzeit_ant
 col1, col2 = st.columns(2)
 with col1:
     exp_home_live = st.slider("Aktuelle Rest-Tor-Erwartung (Heim)", 0.0, 4.0, live_exp_home_calc, 0.05)
-    st.write(f"ℹ️ *Pre-Match Basis (inkl. Ausfälle): {exp_home_pre:.2f}*")
 with col2:
     exp_away_live = st.slider("Aktuelle Rest-Tor-Erwartung (Auswärts)", 0.0, 4.0, live_exp_away_calc, 0.05)
-    st.write(f"ℹ️ *Pre-Match Basis (inkl. Ausfälle): {exp_away_pre:.2f}*")
 
 def poisson_pmf(k, lamb):
     if lamb == 0 and k == 0: return 1.0
