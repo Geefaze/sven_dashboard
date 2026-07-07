@@ -36,26 +36,56 @@ min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
-# ⚽ DYNAMISCHE LIGEN- & SPIELPLAN-DATENBANK
-st.header("⚽ Spielauswahl & Match-Modus")
-
+# ⚽ VOLLSTÄNDIGE LIGEN-DATENBANK WITH ALL CORE COMPETITIONS
 ligen_datenbank = {
     "FIFA Weltmeisterschaft 2026": {
         "Frankreich - Marokko": {"home_xg": 2.10, "away_xg": 0.95, "home_inj": 0, "away_inj": 2},
         "Schweiz - Kolumbien": {"home_xg": 1.35, "away_xg": 1.45, "home_inj": 1, "away_inj": 0},
+        "Niederlande - Paraguay": {"home_xg": 1.80, "away_xg": 1.10, "home_inj": 0, "away_inj": 1},
+        "Deutschland - Uruguay": {"home_xg": 1.95, "away_xg": 1.25, "home_inj": 1, "away_inj": 0},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Deutschland: 1. Bundesliga": {
+        "Bayern München - Borussia Dortmund": {"home_xg": 2.30, "away_xg": 1.40, "home_inj": 1, "away_inj": 2},
+        "Werder Bremen - VfB Stuttgart": {"home_xg": 1.45, "away_xg": 1.60, "home_inj": 0, "away_inj": 1},
+        "RB Leipzig - Bayer Leverkusen": {"home_xg": 1.75, "away_xg": 1.80, "home_inj": 2, "away_inj": 0},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "England: Premier League": {
+        "Manchester City - Liverpool FC": {"home_xg": 2.20, "away_xg": 1.70, "home_inj": 1, "away_inj": 1},
+        "Arsenal FC - Chelsea FC": {"home_xg": 1.95, "away_xg": 1.20, "home_inj": 0, "away_inj": 2},
+        "Manchester United - Tottenham": {"home_xg": 1.60, "away_xg": 1.55, "home_inj": 1, "away_inj": 0},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Spanien: La Liga": {
+        "Real Madrid - FC Barcelona": {"home_xg": 2.15, "away_xg": 1.85, "home_inj": 1, "away_inj": 1},
+        "Atlético Madrid - Sevilla FC": {"home_xg": 1.70, "away_xg": 1.05, "home_inj": 0, "away_inj": 0},
         "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     },
     "Skandinavien & Sommer-Ligen": {
-        "Molde FK - Bodø/Glimt": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1},
-        "Malmö FF - Djurgårdens IF": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0}
+        "Molde FK - Bodø/Glimt (Norwegen)": {"home_xg": 1.85, "away_xg": 1.65, "home_inj": 2, "away_inj": 1},
+        "Malmö FF - Djurgårdens IF (Schweden)": {"home_xg": 1.90, "away_xg": 1.20, "home_inj": 1, "away_inj": 0},
+        "Hammarby IF - AIK Solna (Schweden)": {"home_xg": 1.55, "away_xg": 1.30, "home_inj": 0, "away_inj": 1},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Frauen-Fußball (WBO Overlay)": {
+        "FC Bayern (F) - VfL Wolfsburg (F)": {"home_xg": 1.70, "away_xg": 1.50, "home_inj": 0, "away_inj": 1},
+        "Deutschland (F) - Frankreich (F)": {"home_xg": 1.60, "away_xg": 1.40, "home_inj": 1, "away_inj": 0},
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.40, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
+    },
+    "Sonstige Ligen / Manueller Joker": {
+        "Eigenes Spiel manuell eingeben...": {"home_xg": 1.50, "away_xg": 1.10, "home_inj": 0, "away_inj": 0}
     }
 }
 
+# 1. Auswahl der Liga
+st.header("⚽ Spielauswahl & Match-Modus")
 liga_auswahl = st.selectbox("1. Wähle die Liga / den Wettbewerb aus:", list(ligen_datenbank.keys()))
+
+# 2. Auswahl der Partie basierend auf der Liga
 partien_zur_auswahl = list(ligen_datenbank[liga_auswahl].keys())
 spiel_auswahl = st.selectbox("2. Wähle die aktuelle Partie aus:", partien_zur_auswahl)
 
-# Session-States für Tore initialisieren
 if "goals_home" not in st.session_state: st.session_state.goals_home = 0
 if "goals_away" not in st.session_state: st.session_state.goals_away = 0
 
@@ -65,7 +95,7 @@ if st.session_state.get("last_selected_game", "") != spiel_auswahl:
     st.session_state.goals_away = 0
 
 if spiel_auswahl == "Eigenes Spiel manuell eingeben...":
-    game_input = st.text_input("Manuelle Partie eingeben:", value="Deutschland - Uruguay")
+    game_input = st.text_input("Manuelle Partie eingeben (Heim - Auswärts):", value="Deutschland - Uruguay")
     base_home_val, base_away_val, injuries_home_val, injuries_away_val = 1.50, 1.10, 0, 0
 else:
     game_input = spiel_auswahl
@@ -74,7 +104,7 @@ else:
     injuries_home_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["home_inj"]
     injuries_away_val = ligen_datenbank[liga_auswahl][spiel_auswahl]["away_inj"]
 
-# ⚡ DER MODUS-SCHALTER (Verhindert fehlerhafte 90-Minuten-Berechnungen)
+# 🔥 DER MODUS-SCHALTER
 st.markdown("---")
 is_live_active = st.checkbox("🔥 Spiel läuft bereits (Live-Wetten-Modus einschalten)", value=False)
 
@@ -94,7 +124,6 @@ if is_live_active:
         if st.button("➖ Tor Auswärts") and st.session_state.goals_away > 0: st.session_state.goals_away -= 1
         st.markdown(f"### **{st.session_state.goals_away}**")
 else:
-    # Pre-Match Standardwerte erzwingen
     live_minute = 0
     st.session_state.goals_home = 0
     st.session_state.goals_away = 0
@@ -113,7 +142,7 @@ if is_live_active:
         base_home_val *= 1.10
         base_away_val *= 1.10
 
-# 8-Säulen Ausfall-Dämpfung (-8% pro verletztem Spieler)
+# 8-Säulen Ausfall-Dämpfung
 exp_home_pre = max(base_home_val * (1.0 - (injuries_home_val * 0.08)), 0.1)
 exp_away_pre = max(base_away_val * (1.0 - (injuries_away_val * 0.08)), 0.1)
 
@@ -158,7 +187,7 @@ def calculate_real_market_odds(prob, margin=0.05):
     if prob < 0.005: return 99.0
     return round((1.0 / prob) * (1.0 - margin), 2)
 
-# Echte Marktquoten-Skalierung
+# Quoten skalisieren
 odds_1 = calculate_real_market_odds(prob_home)
 odds_x = calculate_real_market_odds(prob_draw)
 odds_2 = calculate_real_market_odds(prob_away)
@@ -177,11 +206,10 @@ quoten_daten = {
 }
 st.table(pd.DataFrame(quoten_daten))
 
-# 🛠️ KOMBIWETTEN-KONFIGURATOR (PRE-MATCH & LIVE GEPRÜFT)
+# 🛠️ KOMBIWETTEN-KONFIGURATOR
 st.markdown("---")
 st.header("🔥 Sinnvollste Kombi-Konfigurationen (Spielfeld-Kombis)")
 
-# 1. Sicherheits-Kombi
 if prob_dc_1x > prob_dc_x2:
     safe_dc_title = f"Doppelte Chance 1X ({heim_name})"
     safe_dc_odds = odds_dc_1x
@@ -193,7 +221,6 @@ safe_tor_title = "Unter 3,5 Tore" if prob_under_35 > 0.50 else "Über 1,5 Tore"
 safe_tor_odds = calculate_real_market_odds(prob_under_35) if prob_under_35 > 0.50 else 1.22
 safe_kombi_odds = round(safe_dc_odds * safe_tor_odds * 0.93, 2)
 
-# 2. Value-Kombi
 if prob_home > prob_away and prob_home > prob_draw:
     value_trend = f"Sieg {heim_name}"
     value_trend_odds = odds_1
@@ -212,7 +239,6 @@ else:
 
 value_kombi_odds = round(value_trend_odds * value_tor_odds * 0.92, 2)
 
-# 3. Ergebnis-Kombi
 risiko_trend_name = heim_name if prob_home > prob_away else auswaerts_name
 risiko_trend_odds = odds_1 if prob_home > prob_away else odds_2
 risiko_tipp = "BTTS: JA" if prob_btts_yes > 0.50 else "BTTS: NEIN"
@@ -223,12 +249,12 @@ c_safe, c_val, c_risk = st.columns(3)
 with c_safe:
     st.success("🛡️ **1. Sicherheits-Kombi**")
     st.markdown(f"* **{safe_dc_title}**\n* **{safe_tor_title}**")
-    st.markdown(f"📈 Realistische Quote: **{max(safe_kombi_odds, 1.15):.2f}**")
+    st.markdown(f"📈 Reale Quote: **{max(safe_kombi_odds, 1.15):.2f}**")
 with c_val:
     st.info("⚡ **2. Value-Kombi**")
     st.markdown(f"* **{value_trend}**\n* **{value_tor}**")
-    st.markdown(f"📈 Realistische Quote: **{max(value_kombi_odds, 1.35):.2f}**")
+    st.markdown(f"📈 Reale Quote: **{max(value_kombi_odds, 1.35):.2f}**")
 with c_risk:
     st.error("💥 **3. Ergebnis-Kombi**")
     st.markdown(f"* **Sieg {risiko_trend_name}**\n* **{risiko_tipp}**")
-    st.markdown(f"📈 Realistische Quote: **{max(risiko_kombi_odds, 1.60):.2f}**")
+    st.markdown(f"📈 Reale Quote: **{max(risiko_kombi_odds, 1.60):.2f}**")
