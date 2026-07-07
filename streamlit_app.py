@@ -1,13 +1,3 @@
-import os
-import subprocess
-import sys
-
-# Erzwungene Installation von SciPy direkt beim Start der App
-try:
-    import scipy
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy"])
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -85,4 +75,3 @@ if max_value > min_value_margin:
     st.success(f"🔥 VALUE GEFUNDEN! Tipp: {best_bet} bei [{best_bookie}] zu Quote {best_odds}. Einsatz: {final_stake_pct*100:.2f}% ({bankroll * final_stake_pct:.2f}€)")
 else:
     st.error(f"❌ KEIN VALUE (Max Vorteil: +{max_value*100:.2f}%). Spiel aussortieren.")
-
