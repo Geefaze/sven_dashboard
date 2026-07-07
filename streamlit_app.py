@@ -172,17 +172,17 @@ prob_dc_x2 = prob_away + prob_draw
 heim_name = game_input.split('-')[0].strip() if '-' in game_input else 'Heim'
 auswaerts_name = game_input.split('-')[1].strip() if '-' in game_input else 'Auswärts'
 
-# Quoten generieren
-odds_1 = round((1.0 / (prob_home + 0.02)) * 0.95, 2) if prob_home > 0.01 else 99.0
-odds_x = round((1.0 / (prob_draw + 0.02)) * 0.95, 2) if prob_draw > 0.01 else 99.0
-odds_2 = round((1.0 / (prob_away + 0.02)) * 0.95, 2) if prob_away > 0.01 else 99.0
-odds_btts_yes = round((1.0 / (prob_btts_yes + 0.02)) * 0.95, 2) if prob_btts_yes > 0.01 else 99.0
-odds_btts_no = round((1.0 / ((1 - prob_btts_yes) + 0.02)) * 0.95, 2) if (1 - prob_btts_yes) > 0.01 else 99.0
-odds_under_25 = round((1.0 / (prob_under_25 + 0.02)) * 0.95, 2) if prob_under_25 > 0.01 else 99.0
-odds_over_25 = round((1.0 / ((1 - prob_under_25) + 0.02)) * 0.95, 2) if (1 - prob_under_25) > 0.01 else 99.0
-odds_under_35 = round((1.0 / (prob_under_35 + 0.02)) * 0.95, 2) if prob_under_35 > 0.01 else 99.0
-odds_dc_1x = round((1.0 / (prob_dc_1x + 0.02)) * 0.95, 2) if prob_dc_1x > 0.01 else 99.0
-odds_dc_x2 = round((1.0 / (prob_dc_x2 + 0.02)) * 0.95, 2) if prob_dc_x2 > 0.01 else 99.0
+# 📊 Einzelfaire Live-Quoten mit minimaler Untergrenze von 1.01
+odds_1 = max(round((1.0 / (prob_home + 0.02)) * 0.95, 2), 1.01) if prob_home > 0.001 else 99.0
+odds_x = max(round((1.0 / (prob_draw + 0.02)) * 0.95, 2), 1.01) if prob_draw > 0.001 else 99.0
+odds_2 = max(round((1.0 / (prob_away + 0.02)) * 0.95, 2), 1.01) if prob_away > 0.001 else 99.0
+odds_btts_yes = max(round((1.0 / (prob_btts_yes + 0.02)) * 0.95, 2), 1.01) if prob_btts_yes > 0.001 else 99.0
+odds_btts_no = max(round((1.0 / ((1 - prob_btts_yes) + 0.02)) * 0.95, 2), 1.01) if (1 - prob_btts_yes) > 0.001 else 99.0
+odds_under_25 = max(round((1.0 / (prob_under_25 + 0.02)) * 0.95, 2), 1.01) if prob_under_25 > 0.001 else 99.0
+odds_over_25 = max(round((1.0 / ((1 - prob_under_25) + 0.02)) * 0.95, 2), 1.01) if (1 - prob_under_25) > 0.001 else 99.0
+odds_under_35 = max(round((1.0 / (prob_under_35 + 0.02)) * 0.95, 2), 1.01) if prob_under_35 > 0.001 else 99.0
+odds_dc_1x = max(round((1.0 / (prob_dc_1x + 0.02)) * 0.95, 2), 1.01) if prob_dc_1x > 0.001 else 99.0
+odds_dc_x2 = max(round((1.0 / (prob_dc_x2 + 0.02)) * 0.95, 2), 1.01) if prob_dc_x2 > 0.001 else 99.0
 
 st.markdown("---")
 st.subheader("📊 Berechnete Live-Mindestquoten")
@@ -193,47 +193,44 @@ quoten_daten = {
 }
 st.table(pd.DataFrame(quoten_daten))
 
-# 🛠️ INTELLIGENTER KOMBIWETTEN-KONFIGURATOR (8-SÄULEN-KORRELATION)
+# 🛠️ INTELLIGENTER KOMBIWETTEN-KONFIGURATOR (KORRIGIERTE QUOTEN-LOGIK)
 st.markdown("---")
 st.header("🔥 Sinnvollste Kombi-Konfigurationen (Spielfeld-Kombis)")
 
-# Logik für Sicherheits-Kombi (Wählt die stabilste DC + Torabsicherung)
+# 1. Sicherheits-Kombi
 if prob_dc_1x > prob_dc_x2:
     safe_dc = f"Doppelte Chance 1X ({heim_name})"
     safe_dc_odds = odds_dc_1x
-    safe_dc_prob = prob_dc_1x
 else:
     safe_dc = f"Doppelte Chance X2 ({auswaerts_name})"
     safe_dc_odds = odds_dc_x2
-    safe_dc_prob = prob_dc_x2
 
 safe_tor = "Unter 3,5 Tore" if prob_under_35 > 0.50 else "Über 1,5 Tore"
 safe_tor_odds = odds_under_35 if prob_under_35 > 0.50 else 1.25
-safe_kombi_odds = round(safe_dc_odds * safe_tor_odds * 0.85, 2) # 15% Korrelations-Abschlag für Konfigurator
 
-# Logik für Value-Kombi (Kombiniert den stärksten Trend mit Toranzahl oder BTTS)
+# Mathematisch korrekte Konfigurator-Zusammenführung (Quote kann nie unter die höchste Einzelquote fallen)
+safe_kombi_odds = max(round(safe_dc_odds * safe_tor_odds * 0.90, 2), safe_dc_odds, safe_tor_odds)
+
+# 2. Value-Kombi
 if prob_home > prob_away and prob_home > prob_draw:
     value_trend = f"Sieg {heim_name}"
     value_trend_odds = odds_1
-    value_trend_prob = prob_home
     value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
     value_tor_odds = odds_under_35 if prob_under_25 > 0.45 else 1.25
 elif prob_away > prob_home and prob_away > prob_draw:
     value_trend = f"Sieg {auswaerts_name}"
     value_trend_odds = odds_2
-    value_trend_prob = prob_away
     value_tor = "Unter 3,5 Tore" if prob_under_25 > 0.45 else "Über 1,5 Tore"
     value_tor_odds = odds_under_35 if prob_under_25 > 0.45 else 1.25
 else:
     value_trend = "Unentschieden (X)"
     value_trend_odds = odds_x
-    value_trend_prob = prob_draw
     value_tor = "Unter 2,5 Tore"
     value_tor_odds = odds_under_25
 
-value_kombi_odds = round(value_trend_odds * value_tor_odds * 0.88, 2)
+value_kombi_odds = max(round(value_trend_odds * value_tor_odds * 0.90, 2), value_trend_odds, value_tor_odds)
 
-# Logik für Risiko-Kombi (High Return)
+# 3. Ergebnis-Kombi (Schützt vor gigantischen Ausreißern durch Multiplikations-Kappe)
 if prob_btts_yes > 0.50:
     risiko_tipp = "Beide treffen: JA"
     risiko_odds = odds_btts_yes
@@ -243,7 +240,11 @@ else:
     
 risiko_trend_odds = odds_1 if prob_home > prob_away else odds_2
 risiko_trend_name = heim_name if prob_home > prob_away else auswaerts_name
-risiko_kombi_odds = round(risiko_trend_odds * risiko_odds * 0.80, 2)
+
+# Realistische Deckelung für Buchmacher-Konfiguratoren bei extremen Außenseiter-Livewetten
+risiko_kombi_odds = max(round(risiko_trend_odds * risiko_odds * 0.85, 2), risiko_trend_odds)
+if risiko_kombi_odds > 35.0:
+    risiko_kombi_odds = 25.0 + (risiko_kombi_odds % 10) # Glättet extreme Spitzen ab
 
 # Gewinnausgabe auf dem Dashboard
 c_safe, c_val, c_risk = st.columns(3)
