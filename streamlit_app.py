@@ -18,15 +18,29 @@ if not st.session_state.password_correct:
     st.stop()
 
 st.title("📊 Sven's 8-Pillar Betting Algorithm & Dashboard")
+
+# ⚙️ SYSTEMEINSTELLUNGEN (Seitenleiste)
 st.sidebar.header("⚙️ Systemeinstellungen")
-bankroll = st.sidebar.number_input("Aktuelle Bankroll (€)", min_value=10.0, value=1500.0, step=50.0)
 modus = st.sidebar.radio("Modus auswählen:", ["Herren-Fußball (Regulär)", "Frauen-Fußball (Strenges Overlay)"])
+
+st.sidebar.subheader("💰 Bankrolls pro Konto")
+bankroll_betano = st.sidebar.number_input("Betano Guthaben (€)", min_value=0.0, value=500.0, step=50.0)
+bankroll_interwetten = st.sidebar.number_input("Interwetten Guthaben (€)", min_value=0.0, value=500.0, step=50.0)
+bankroll_winamax = st.sidebar.number_input("Winamax Guthaben (€)", min_value=0.0, value=500.0, step=50.0)
+
+# Zuordnung der Bankrolls für die spätere Berechnung
+bankrolls = {
+    'Betano': bankroll_betano,
+    'Interwetten': bankroll_interwetten,
+    'Winamax': bankroll_winamax
+}
 
 is_womens_football = (modus == "Frauen-Fußball (Strenges Overlay)")
 min_value_margin = 0.15 if is_womens_football else 0.05
 kelly_fraction = 0.10 if is_womens_football else 0.25
 max_cap = 0.03 if is_womens_football else 0.05
 
+# ⚽ SPIEL-ANALYSE
 st.header("⚽ Spiel-Analyse & Value-Finder")
 col1, col2 = st.columns(2)
 with col1:
@@ -56,12 +70,31 @@ for x in range(0, 11):
 st.subheader("📊 Berechnete Wahrscheinlichkeiten")
 st.write(f"Sieg {home_team}: {prob_home*100:.2f}% | Unentschieden: {prob_draw*100:.2f}% | Sieg {away_team}: {prob_away*100:.2f}%")
 
-st.subheader("💰 Quoten-Eingabe (Betano, Interwetten, Winamax)")
-b_1 = st.number_input("Betano Quote 1", value=1.57)
-i_x = st.number_input("Interwetten Quote X", value=4.10)
-w_2 = st.number_input("Winamax Quote 2", value=6.40)
+# 💰 QUOTEN-EINGABE
+st.subheader("💰 Quoten-Eingabe (Aktuelle Live-Quoten)")
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.write("**Betano**")
+    b_1 = st.number_input("Quote 1 (Betano)", value=1.57, label_visibility="collapsed")
+    b_x = st.number_input("Quote X (Betano)", value=3.95, label_visibility="collapsed")
+    b_2 = st.number_input("Quote 2 (Betano)", value=6.20, label_visibility="collapsed")
+with c2:
+    st.write("**Interwetten**")
+    i_1 = st.number_input("Quote 1 (Interwetten)", value=1.53, label_visibility="collapsed")
+    i_x = st.number_input("Quote X (Interwetten)", value=4.10, label_visibility="collapsed")
+    i_2 = st.number_input("Quote 2 (Interwetten)", value=6.00, label_visibility="collapsed")
+with c3:
+    st.write("**Winamax**")
+    w_1 = st.number_input("Quote 1 (Winamax)", value=1.65, label_visibility="collapsed")
+    w_x = st.number_input("Quote X (Winamax)", value=3.90, label_visibility="collapsed")
+    w_2 = st.number_input("Quote 2 (Winamax)", value=6.40, label_visibility="collapsed")
 
-bookie_odds = {'Betano': {'1': b_1, 'X': 3.95, '2': 6.20}, 'Interwetten': {'1': 1.53, 'X': i_x, '2': 6.00}, 'Winamax': {'1': 1.65, 'X': 3.90, '2': w_2}}
+bookie_odds = {
+    'Betano': {'1': b_1, 'X': b_x, '2': b_2},
+    'Interwetten': {'1': i_1, 'X': i_x, '2': i_2},
+    'Winamax': {'1': w_1, 'X': w_x, '2': w_2}
+}
+
 outcomes, probs = ['1', 'X', '2'], [prob_home, prob_draw, prob_away]
 max_value, best_bet, best_bookie, best_odds, best_prob = -1.0, None, None, 0.0, 0.0
 
@@ -76,6 +109,13 @@ for idx, outcome in enumerate(outcomes):
 if max_value > min_value_margin:
     raw_kelly = max_value / (best_odds - 1)
     final_stake_pct = min(raw_kelly * kelly_fraction, max_cap)
-    st.success(f"🔥 VALUE GEFUNDEN! Tipp: {best_bet} bei [{best_bookie}] zu Quote {best_odds}. Einsatz: {final_stake_pct*100:.2f}% ({bankroll * final_stake_pct:.2f}€)")
+    
+    # Holt sich die spezifische Bankroll des besten Buchmachers
+    selected_bankroll = bankrolls[best_bookie]
+    stake_euro = selected_bankroll * final_stake_pct
+    
+    st.success(f"🔥 VALUE GEFUNDEN! Tipp: {best_bet} bei [{best_bookie}] zu Quote {best_odds}.")
+    st.info(f"💵 Empfohlener Einsatz: {final_stake_pct*100:.2f}% von deinem {best_bookie}-Konto = **{stake_euro:.2f}€**")
 else:
     st.error(f"❌ KEIN VALUE (Max Vorteil: +{max_value*100:.2f}%). Spiel aussortieren.")
+
