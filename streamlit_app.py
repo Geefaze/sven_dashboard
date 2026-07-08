@@ -313,16 +313,62 @@ st.success(
 
 
 
-auswahl=st.selectbox(
+# ==========================
+# LIGA FILTER
+# ==========================
 
-    "Spiel auswählen",
+liga_liste = sorted(
+    list(set(
+        x["Liga"]
+        for x in games
+    ))
+)
+
+
+liga_auswahl = st.selectbox(
+    "🏆 Liga auswählen:",
+    liga_liste
+)
+
+
+liga_games = [
+
+    x for x in games
+
+    if x["Liga"] == liga_auswahl
+
+]
+
+
+st.info(
+    f"{len(liga_games)} Spiele in {liga_auswahl}"
+)
+
+
+
+auswahl = st.selectbox(
+
+    "⚽ Spiel auswählen:",
 
     [
         f"{x['Heim']} - {x['Auswärts']}"
 
-        for x in games
+        for x in liga_games
 
     ]
+
+)
+
+
+idx = [
+    f"{x['Heim']} - {x['Auswärts']}"
+
+    for x in liga_games
+
+].index(auswahl)
+
+
+match = liga_games[idx]
 
 )
 
