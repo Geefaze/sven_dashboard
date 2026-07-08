@@ -1,3 +1,4 @@
+st.warning("🔥 TEST: streamlit_app.py wird geladen")
 import streamlit as st
 import pandas as pd
 import numpy as np
