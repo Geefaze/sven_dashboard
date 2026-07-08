@@ -255,14 +255,13 @@ auswahl = st.selectbox(
 
 
 index = spiel_namen.index(
-
     auswahl
-
 )
 
+match = liga_games[index]
 
 
-st.write("DEBUG ausgewähltes Spiel:")
+st.write("🔎 DEBUG ausgewähltes Spiel:")
 st.write(match)
 
 st.write("Heim ID:")
