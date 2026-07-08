@@ -262,7 +262,14 @@ index = spiel_namen.index(
 
 
 
-match = liga_games[index]
+st.write("DEBUG ausgewähltes Spiel:")
+st.write(match)
+
+st.write("Heim ID:")
+st.write(match["home_id"])
+
+st.write("Auswärts ID:")
+st.write(match["away_id"])
 
 
 
