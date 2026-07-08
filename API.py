@@ -39,7 +39,7 @@ def get_today_matches():
 
 
     data = response.json()
-
+st.write(data)
 
     matches = []
 
