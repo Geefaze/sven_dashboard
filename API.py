@@ -1,14 +1,13 @@
-
 import requests
 import streamlit as st
 from datetime import datetime
+import pytz
 
 
 BASE_URL = "https://v3.football.api-sports.io"
 
 
 def get_headers():
-
     return {
         "x-apisports-key": st.secrets["API_KEY"]
     }
@@ -16,13 +15,19 @@ def get_headers():
 
 def get_today_matches():
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Deutsche Zeitzone
+    germany = pytz.timezone("Europe/Berlin")
+    today = datetime.now(germany).strftime("%Y-%m-%d")
+
 
     url = f"{BASE_URL}/fixtures"
 
+
     params = {
-        "date": today
+        "date": today,
+        "timezone": "Europe/Berlin"
     }
+
 
     response = requests.get(
         url,
@@ -30,29 +35,40 @@ def get_today_matches():
         params=params
     )
 
+
     data = response.json()
+
 
     matches = []
 
+
     for game in data.get("response", []):
+
+        fixture = game["fixture"]
+        teams = game["teams"]
+        league = game["league"]
+
 
         matches.append({
 
-            "id":
-            game["fixture"]["id"],
+            "id": fixture["id"],
+
+            "date":
+            fixture["date"],
 
             "league":
-            game["league"]["name"],
+            league["name"],
+
+            "country":
+            league["country"],
 
             "home":
-            game["teams"]["home"]["name"],
+            teams["home"]["name"],
 
             "away":
-            game["teams"]["away"]["name"],
-
-            "time":
-            game["fixture"]["date"]
+            teams["away"]["name"]
 
         })
+
 
     return matches
