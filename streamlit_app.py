@@ -440,3 +440,123 @@ score_table=pd.DataFrame({
 
 
 st.table(score_table)
+# ==========================
+# WETT ENGINE
+# ==========================
+
+st.divider()
+
+st.subheader("🎯 Wett-Engine & Value Analyse")
+
+
+st.info(
+    "Gib die aktuelle Buchmacherquote ein. "
+    "Das Modell vergleicht sie mit dem AI Edge Score."
+)
+
+
+quote = st.number_input(
+    "Quote für deinen Tipp:",
+    min_value=1.01,
+    max_value=100.0,
+    value=2.00,
+    step=0.05
+)
+
+
+modell_wahrscheinlichkeit = edge / 100
+
+
+faire_quote = round(
+    1 / modell_wahrscheinlichkeit,
+    2
+)
+
+
+buchmacher_wahrscheinlichkeit = round(
+    (1 / quote) * 100,
+    1
+)
+
+
+value = round(
+    ((quote * modell_wahrscheinlichkeit) - 1) * 100,
+    1
+)
+
+
+
+c1,c2,c3 = st.columns(3)
+
+
+with c1:
+
+    st.metric(
+        "Modellwahrscheinlichkeit",
+        f"{modell_wahrscheinlichkeit*100:.1f}%"
+    )
+
+
+with c2:
+
+    st.metric(
+        "Faire Quote",
+        faire_quote
+    )
+
+
+with c3:
+
+    st.metric(
+        "Value",
+        f"{value}%"
+    )
+
+
+
+if value >= 10:
+
+    st.success(
+        "🟢 VALUE BET erkannt"
+    )
+
+
+elif value >= 0:
+
+    st.info(
+        "🟡 Kleine Modellkante"
+    )
+
+
+else:
+
+    st.warning(
+        "🔴 Kein Value"
+    )
+
+
+
+# BANKROLL
+
+st.divider()
+
+st.subheader("💰 Einsatzberechnung")
+
+
+bankroll = st.number_input(
+    "Bankroll (€)",
+    min_value=1.0,
+    value=16.88
+)
+
+
+einsatz = round(
+    bankroll * 0.03,
+    2
+)
+
+
+st.metric(
+    "Empfohlener Einsatz",
+    f"{einsatz} €"
+)
