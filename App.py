@@ -3,8 +3,7 @@ for match in matches:
    from api import get_today_matches
 
 
-st.subheader("📅 Tagesaktueller Match-Scanner")
-
+st.title("🔥 TEST VERSION 2 - API SCANNER AKTIV")
 
 matches = get_today_matches()
 
