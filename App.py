@@ -1,4 +1,8 @@
 import streamlit as st
+
+st.write("Test gestartet")
+
+st.write(st.secrets["API_KEY"])import streamlit as st
 from api import get_today_matches
 
 
