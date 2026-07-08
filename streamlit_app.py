@@ -1,10 +1,10 @@
-st.warning("🔥 TEST: streamlit_app.py wird geladen")
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import math
 import datetime
-
+st.warning("🔥 TEST: streamlit_app.py wird geladen")
 if "password_correct" not in st.session_state:
     st.session_state.password_correct = False
 
