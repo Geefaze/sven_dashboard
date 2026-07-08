@@ -1,12 +1,8 @@
 import streamlit as st
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 
-
-# ==========================
-# EINSTELLUNGEN
-# ==========================
 
 st.set_page_config(
     page_title="Sven AI Betting Cockpit",
@@ -19,7 +15,7 @@ API_URL = "https://v3.football.api-sports.io"
 
 
 # ==========================
-# PASSWORT
+# LOGIN
 # ==========================
 
 if "password_correct" not in st.session_state:
@@ -51,51 +47,38 @@ if not st.session_state.password_correct:
 
 
 # ==========================
-# API ABFRAGE
+# API
 # ==========================
 
-@st.cache_data(ttl=1800)
-def get_matches():
-
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
+def api_request(date):
 
     headers = {
-
-        "x-apisports-key":
-        st.secrets["API_KEY"]
-
+        "x-apisports-key": st.secrets["API_KEY"]
     }
 
 
     params = {
 
-        "date": today,
+        "date": date,
 
-        "timezone":
-        "Europe/Berlin"
+        "timezone": "Europe/Berlin"
 
     }
 
 
-    response = requests.get(
-
+    r = requests.get(
         f"{API_URL}/fixtures",
-
         headers=headers,
-
         params=params
-
     )
 
 
-    return response.json()
+    return r.json()
 
 
 
 # ==========================
-# START
+# SCANNER
 # ==========================
 
 
@@ -105,85 +88,76 @@ st.title(
 
 
 st.subheader(
-    "📅 Tagesaktueller Match Scanner"
+    "📅 Match Scanner"
 )
 
 
 
-try:
-
-    data = get_matches()
+today = datetime.now()
 
 
-except Exception as e:
-
-    st.error(
-        f"API Fehler: {e}"
-    )
-
-    st.stop()
+dates = []
 
 
+for i in range(0,3):
 
-# ==========================
-# DEBUG
-# ==========================
-
-
-with st.expander(
-    "🔧 API Diagnose"
-):
-
-    st.write(data)
-
-
-
-# ==========================
-# SPIELE AUSLESEN
-# ==========================
-
-
-matches = []
-
-
-for game in data.get("response", []):
-
-
-    matches.append({
-
-        "Liga":
-        game["league"]["name"],
-
-        "Land":
-        game["league"]["country"],
-
-        "Heim":
-        game["teams"]["home"]["name"],
-
-        "Auswärts":
-        game["teams"]["away"]["name"],
-
-        "Zeit":
-        game["fixture"]["date"]
-
-    })
-
-
-
-if len(matches) == 0:
-
-
-    st.warning(
-        "⚠️ Keine Spiele gefunden"
+    dates.append(
+        (
+            today + timedelta(days=i)
+        ).strftime("%Y-%m-%d")
     )
 
 
-    st.info(
-        "Öffne oben 'API Diagnose' und prüfe die Antwort."
+
+all_matches = []
+
+
+for date in dates:
+
+    result = api_request(date)
+
+
+    if "response" in result:
+
+        for game in result["response"]:
+
+            all_matches.append({
+
+                "Datum": date,
+
+                "Liga":
+                game["league"]["name"],
+
+                "Land":
+                game["league"]["country"],
+
+                "Heim":
+                game["teams"]["home"]["name"],
+
+                "Auswärts":
+                game["teams"]["away"]["name"],
+
+                "Zeit":
+                game["fixture"]["date"]
+
+            })
+
+
+
+# ==========================
+# DIAGNOSE
+# ==========================
+
+
+with st.expander("🔧 API Diagnose"):
+
+    st.write(
+        f"Abgefragte Tage: {dates}"
     )
 
-
-    st.stop()
+    st.write(
+        f"Gefundene Spiele: {len(all_matches)}"
+    )
 
 
 
@@ -192,12 +166,33 @@ if len(matches) == 0:
 # ==========================
 
 
+if len(all_matches) == 0:
+
+    st.warning(
+        "⚠️ Keine Spiele gefunden"
+    )
+
+    st.info(
+        """
+        Mögliche Ursachen:
+        
+        - API-Football Free Plan liefert keine Fixtures
+        - API-Key ist nicht aktiv
+        - Heute gibt es keine Spiele im verfügbaren Datenumfang
+        """
+    )
+
+    st.stop()
+
+
+
 st.success(
-    f"{len(matches)} Spiele gefunden"
+    f"{len(all_matches)} Spiele gefunden"
 )
 
 
-df = pd.DataFrame(matches)
+
+df = pd.DataFrame(all_matches)
 
 
 st.dataframe(
@@ -208,34 +203,24 @@ st.dataframe(
 
 
 # ==========================
-# SPIELAUSWAHL
+# AUSWAHL
 # ==========================
 
 
-st.divider()
-
-
-auswahl = st.selectbox(
+spiel = st.selectbox(
 
     "⚽ Spiel auswählen",
 
     [
-
         f"{x['Heim']} - {x['Auswärts']}"
 
-        for x in matches
+        for x in all_matches
 
     ]
 
 )
 
 
-
 st.success(
-    f"Ausgewählt: {auswahl}"
-)
-
-
-st.info(
-    "Nächster Schritt: Quoten, 8-Säulen-Analyse und AI Edge Score."
+    f"Ausgewählt: {spiel}"
 )
