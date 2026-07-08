@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 st.set_page_config(
@@ -26,6 +26,7 @@ if "password_correct" not in st.session_state:
 if not st.session_state.password_correct:
 
     st.title("🔒 Sven AI Betting Cockpit")
+
 
     password = st.text_input(
         "Passwort:",
@@ -53,14 +54,7 @@ if not st.session_state.password_correct:
 # API FUNKTION
 # ==========================
 
-
 def api_get(endpoint, params):
-
-    headers = {
-        "x-apisports-key":
-        st.secrets["API_KEY"]
-    }
-
 
     try:
 
@@ -68,11 +62,14 @@ def api_get(endpoint, params):
 
             f"{API_URL}/{endpoint}",
 
-            headers=headers,
+            headers={
+                "x-apisports-key":
+                st.secrets["API_KEY"]
+            },
 
             params=params,
 
-            timeout=10
+            timeout=15
 
         )
 
@@ -80,76 +77,106 @@ def api_get(endpoint, params):
         return response.json()
 
 
-    except Exception:
+    except Exception as e:
 
-        return {}
+        return {
+            "errors": str(e),
+            "response": []
+        }
 
 
 
 # ==========================
-# SPIELE DES TAGES
+# SPIELE LADEN
 # ==========================
 
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=600)
 def get_games():
 
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    heute = datetime.now()
 
 
-    data = api_get(
+    # mehrere Tage prüfen falls Zeitzone abweicht
 
-        "fixtures",
+    tage = [
 
-        {
-            "date": today,
-            "timezone": "Europe/Berlin"
-        }
+        heute.strftime("%Y-%m-%d"),
 
-    )
+        (heute + timedelta(days=1)).strftime("%Y-%m-%d"),
 
+        (heute - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    games=[]
+    ]
 
 
-    for item in data.get("response", []):
+
+    alle_spiele=[]
 
 
-        games.append({
 
-            "Heim":
-            item["teams"]["home"]["name"],
+    for tag in tage:
 
 
-            "Auswärts":
-            item["teams"]["away"]["name"],
+        data = api_get(
+
+            "fixtures",
+
+            {
+
+                "date": tag,
+
+                "timezone": "Europe/Berlin"
+
+            }
+
+        )
 
 
-            "home_id":
-            item["teams"]["home"]["id"],
+
+        for item in data.get("response", []):
 
 
-            "away_id":
-            item["teams"]["away"]["id"],
+            alle_spiele.append({
+
+                "Datum":
+                tag,
 
 
-            "Liga":
-            item["league"]["name"],
+                "Heim":
+                item["teams"]["home"]["name"],
 
 
-            "Land":
-            item["league"]["country"]
-
-        })
+                "Auswärts":
+                item["teams"]["away"]["name"],
 
 
-    return games
+                "home_id":
+                item["teams"]["home"]["id"],
+
+
+                "away_id":
+                item["teams"]["away"]["id"],
+
+
+                "Liga":
+                item["league"]["name"],
+
+
+                "Land":
+                item["league"]["country"]
+
+            })
+
+
+
+    return alle_spiele
 
 
 
 # ==========================
-# START
+# APP
 # ==========================
 
 
@@ -168,9 +195,35 @@ games = get_games()
 
 
 
+# API DIAGNOSE
+
+with st.expander(
+    "🔧 API Diagnose"
+):
+
+
+    st.write(
+        "Aktuelles Datum:"
+    )
+
+    st.write(
+        datetime.now().strftime("%Y-%m-%d")
+    )
+
+
+    st.write(
+        "Geladene Spiele:"
+    )
+
+    st.write(
+        len(games)
+    )
+
+
+
 if not games:
 
-    st.warning(
+    st.error(
         "Keine Spiele gefunden"
     )
 
@@ -179,7 +232,9 @@ if not games:
 
 
 st.success(
+
     f"{len(games)} Spiele geladen"
+
 )
 
 
@@ -195,9 +250,9 @@ ligen = sorted(
 
         set(
 
-            game["Liga"]
+            x["Liga"]
 
-            for game in games
+            for x in games
 
         )
 
@@ -209,7 +264,7 @@ ligen = sorted(
 
 liga = st.selectbox(
 
-    "🏆 Liga",
+    "🏆 Liga auswählen",
 
     ligen
 
@@ -217,13 +272,13 @@ liga = st.selectbox(
 
 
 
-liga_spiele = [
+liga_games = [
 
-    game
+    x
 
-    for game in games
+    for x in games
 
-    if game["Liga"] == liga
+    if x["Liga"] == liga
 
 ]
 
@@ -231,22 +286,22 @@ liga_spiele = [
 
 st.info(
 
-    f"{len(liga_spiele)} Spiele in {liga}"
+    f"{len(liga_games)} Spiele in {liga}"
 
 )
 
 
 
 # ==========================
-# SPIELAUSWAHL
+# SPIEL AUSWAHL
 # ==========================
 
 
-spiele_namen = [
+spiel_liste=[
 
     f"{x['Heim']} - {x['Auswärts']}"
 
-    for x in liga_spiele
+    for x in liga_games
 
 ]
 
@@ -254,26 +309,27 @@ spiele_namen = [
 
 auswahl = st.selectbox(
 
-    "⚽ Spiel",
+    "⚽ Spiel auswählen",
 
-    spiele_namen
+    spiel_liste
 
 )
 
 
 
-spiel_index = spiele_namen.index(
+index = spiel_liste.index(
+
     auswahl
+
 )
 
 
 
-match = liga_spiele[spiel_index]
+match = liga_games[index]
 
 
 
 st.divider()
-
 
 
 st.header(
@@ -282,65 +338,73 @@ st.header(
 
 )
 # ==========================
-# FORM DATEN
+# LETZTE SPIELE
 # ==========================
 
 
 @st.cache_data(ttl=1800)
 def get_last_games(team_id):
 
+
     data = api_get(
+
         "fixtures",
+
         {
             "team": team_id,
             "last": 5
         }
+
     )
 
 
-    result = []
+    spiele=[]
 
 
-    for game in data.get("response", []):
-
-        home = game["teams"]["home"]
-        away = game["teams"]["away"]
-
-        home_goals = game["goals"]["home"]
-        away_goals = game["goals"]["away"]
+    for g in data.get("response", []):
 
 
-        if home_goals is None or away_goals is None:
+        home = g["teams"]["home"]
+        away = g["teams"]["away"]
+
+
+        hg = g["goals"]["home"]
+        ag = g["goals"]["away"]
+
+
+        if hg is None or ag is None:
             continue
+
 
 
         if home["id"] == team_id:
 
-            goals_for = home_goals
-            goals_against = away_goals
-            winner = home["winner"]
+            tore = hg
+            gegentore = ag
+            sieg = home["winner"]
 
 
         else:
 
-            goals_for = away_goals
-            goals_against = home_goals
-            winner = away["winner"]
+            tore = ag
+            gegentore = hg
+            sieg = away["winner"]
 
 
 
-        result.append({
+        spiele.append({
 
-            "Tore": goals_for,
+            "Tore": tore,
 
-            "Gegentore": goals_against,
+            "Gegentore": gegentore,
 
-            "Sieg": winner
+            "Sieg": sieg
 
         })
 
 
-    return result
+
+    return spiele
 
 
 
@@ -350,7 +414,7 @@ def get_last_games(team_id):
 
 
 @st.cache_data(ttl=3600)
-def get_head_to_head(team1, team2):
+def get_h2h(team1, team2):
 
 
     data = api_get(
@@ -358,8 +422,12 @@ def get_head_to_head(team1, team2):
         "fixtures/headtohead",
 
         {
-            "h2h": f"{team1}-{team2}",
-            "last": 5
+
+            "h2h":
+            f"{team1}-{team2}",
+
+            "last":5
+
         }
 
     )
@@ -377,100 +445,139 @@ def get_head_to_head(team1, team2):
 # ==========================
 
 
-def calculate_form(points):
+def form_points(data):
 
-    if not points:
+
+    if not data:
+
         return 10
 
 
-    value = 0
+
+    punkte=0
 
 
-    for match in points:
+
+    for x in data:
 
 
-        if match["Sieg"] is True:
+        if x["Sieg"] is True:
 
-            value += 3
+            punkte += 3
 
 
-        elif match["Sieg"] is None:
+        elif x["Sieg"] is None:
 
-            value += 1
+            punkte += 1
 
 
 
     return min(
+
         20,
-        round((value / 15) * 20)
+
+        round(
+
+            (punkte/15)*20
+
+        )
+
     )
 
 
 
-def calculate_attack(data):
+def goal_points(data):
+
 
     if not data:
+
         return 5
 
 
-    goals = sum(
+
+    tore=sum(
+
         x["Tore"]
+
         for x in data
+
     )
 
 
-    conceded = sum(
+    gegentore=sum(
+
         x["Gegentore"]
+
         for x in data
+
     )
 
 
-    score = 5 + ((goals-conceded)/2)
+
+    wert = 5 + ((tore-gegentore)/2)
+
 
 
     return max(
+
         0,
+
         min(
+
             10,
-            round(score)
+
+            round(wert)
+
         )
+
     )
 
 
 
-def calculate_h2h(data):
+def h2h_points(data):
+
 
     if not data:
+
         return 5
 
 
+
     return min(
+
         10,
-        5 + len(data)
+
+        5+len(data)
+
     )
 
 
 
 # ==========================
-# DATEN LADEN
+# ANALYSE
 # ==========================
 
 
 with st.spinner(
-    "🤖 AI Analyse läuft..."
+    "🤖 Berechne AI Edge Score..."
 ):
 
-    home_form = get_last_games(
+
+    heim_form = get_last_games(
+
         match["home_id"]
+
     )
 
 
-    away_form = get_last_games(
+    aus_form = get_last_games(
+
         match["away_id"]
+
     )
 
 
-    h2h_data = get_head_to_head(
+    h2h = get_h2h(
 
         match["home_id"],
 
@@ -480,17 +587,15 @@ with st.spinner(
 
 
 
-# ==========================
-# EDGE SCORE
-# ==========================
-
-
-form_score = round(
+form = round(
 
     (
-        calculate_form(home_form)
+
+        form_points(heim_form)
+
         +
-        calculate_form(away_form)
+
+        form_points(aus_form)
 
     ) / 2
 
@@ -498,12 +603,15 @@ form_score = round(
 
 
 
-goal_score = round(
+tore = round(
 
     (
-        calculate_attack(home_form)
+
+        goal_points(heim_form)
+
         +
-        calculate_attack(away_form)
+
+        goal_points(aus_form)
 
     ) / 2
 
@@ -511,29 +619,31 @@ goal_score = round(
 
 
 
-h2h_score = calculate_h2h(
-    h2h_data
-)
+h2h_score = h2h_points(h2h)
 
 
 
-home_advantage = 8
+heimvorteil = 8
+
 
 
 motivation = 5
-squad = 5
-tactics = 5
+
+kader = 5
+
+taktik = 5
+
 value = 5
 
 
 
-edge_score = (
+edge = (
 
-    form_score
+    form
 
     +
 
-    goal_score
+    tore
 
     +
 
@@ -541,7 +651,7 @@ edge_score = (
 
     +
 
-    home_advantage
+    heimvorteil
 
     +
 
@@ -549,11 +659,11 @@ edge_score = (
 
     +
 
-    squad
+    kader
 
     +
 
-    tactics
+    taktik
 
     +
 
@@ -563,9 +673,12 @@ edge_score = (
 
 
 
-edge_score = min(
+edge = min(
+
     100,
-    edge_score
+
+    edge
+
 )
 
 
@@ -577,26 +690,33 @@ edge_score = min(
 
 st.divider()
 
+
 st.subheader(
+
     "🤖 AI Edge Score"
+
 )
+
 
 
 st.metric(
-    "Gesamtbewertung",
-    f"{edge_score}/100"
+
+    "Gesamt",
+
+    f"{edge}/100"
+
 )
 
 
 
-score = pd.DataFrame({
+score_df = pd.DataFrame({
 
-    "Bereich":[
+    "Säule":[
 
         "Form",
         "Tore",
         "H2H",
-        "Heimvorteil",
+        "Heim/Auswärts",
         "Motivation",
         "Kader",
         "Taktik",
@@ -607,13 +727,20 @@ score = pd.DataFrame({
 
     "Punkte":[
 
-        f"{form_score}/20",
-        f"{goal_score}/10",
+        f"{form}/20",
+
+        f"{tore}/10",
+
         f"{h2h_score}/10",
-        f"{home_advantage}/15",
+
+        f"{heimvorteil}/15",
+
         f"{motivation}/10",
-        f"{squad}/10",
-        f"{tactics}/10",
+
+        f"{kader}/10",
+
+        f"{taktik}/10",
+
         f"{value}/15"
 
     ]
@@ -621,7 +748,7 @@ score = pd.DataFrame({
 })
 
 
-st.table(score)
+st.table(score_df)
 
 
 
@@ -631,33 +758,51 @@ st.table(score)
 
 
 with st.expander(
-    "🔎 Analyse-Daten"
+
+    "🔎 Teamdaten prüfen"
+
 ):
 
+
     st.write(
-        "Heim letzte Spiele"
+
+        "Heim letzte 5 Spiele"
+
     )
+
 
     st.dataframe(
-        pd.DataFrame(home_form)
+
+        pd.DataFrame(heim_form)
+
     )
 
 
     st.write(
-        "Auswärts letzte Spiele"
+
+        "Auswärts letzte 5 Spiele"
+
     )
+
 
     st.dataframe(
-        pd.DataFrame(away_form)
+
+        pd.DataFrame(aus_form)
+
     )
 
 
     st.write(
-        "H2H Anzahl:"
+
+        "H2H Spiele"
+
     )
 
+
     st.write(
-        len(h2h_data)
+
+        len(h2h)
+
     )
 
 
@@ -669,8 +814,11 @@ with st.expander(
 
 st.divider()
 
+
 st.subheader(
+
     "🎯 Wett-Engine"
+
 )
 
 
@@ -691,13 +839,13 @@ quote = st.number_input(
 
 
 
-model_probability = edge_score / 100
+wahrscheinlichkeit = edge/100
 
 
 
-fair_odds = round(
+faire_quote = round(
 
-    1 / model_probability,
+    1/wahrscheinlichkeit,
 
     2
 
@@ -705,9 +853,9 @@ fair_odds = round(
 
 
 
-value_percent = round(
+value_prozent = round(
 
-    ((quote * model_probability)-1)*100,
+    ((quote*wahrscheinlichkeit)-1)*100,
 
     1
 
@@ -718,13 +866,14 @@ value_percent = round(
 c1,c2,c3 = st.columns(3)
 
 
+
 with c1:
 
     st.metric(
 
         "Modell",
 
-        f"{model_probability*100:.1f}%"
+        f"{wahrscheinlichkeit*100:.1f}%"
 
     )
 
@@ -735,7 +884,7 @@ with c2:
 
         "Faire Quote",
 
-        fair_odds
+        faire_quote
 
     )
 
@@ -746,23 +895,25 @@ with c3:
 
         "Value",
 
-        f"{value_percent}%"
+        f"{value_prozent}%"
 
     )
 
 
 
-if value_percent >= 10:
+if value_prozent >= 10:
 
     st.success(
-        "🟢 Value Bet"
+        "🟢 VALUE BET"
     )
 
-elif value_percent >= 0:
+
+elif value_prozent >= 0:
 
     st.info(
         "🟡 Kleine Kante"
     )
+
 
 else:
 
