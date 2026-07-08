@@ -18,6 +18,7 @@ st.set_page_config(
 API_URL = "https://v3.football.api-sports.io"
 
 
+
 # ==========================
 # LOGIN
 # ==========================
@@ -35,62 +36,36 @@ if not st.session_state.password_correct:
         type="password"
     )
 
-
     if st.button("Anmelden"):
 
         if password == "Sven2026":
-
             st.session_state.password_correct = True
             st.rerun()
 
         else:
-
             st.error("Falsches Passwort")
-
 
     st.stop()
 
 
 
 # ==========================
-# API
+# API FUNKTION
 # ==========================
 
-
 @st.cache_data(ttl=1800)
-def get_matches():
-
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
+def api_call(endpoint, params):
 
     headers = {
-
         "x-apisports-key":
         st.secrets["API_KEY"]
-
-    }
-
-
-    params = {
-
-        "date":
-        today,
-
-        "timezone":
-        "Europe/Berlin"
-
     }
 
 
     response = requests.get(
-
-        f"{API_URL}/fixtures",
-
+        f"{API_URL}/{endpoint}",
         headers=headers,
-
         params=params
-
     )
 
 
@@ -99,7 +74,118 @@ def get_matches():
 
 
 # ==========================
-# DATEN LADEN
+# SPIELE HEUTE
+# ==========================
+
+@st.cache_data(ttl=1800)
+def get_today_matches():
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+
+    data = api_call(
+        "fixtures",
+        {
+            "date": today,
+            "timezone": "Europe/Berlin"
+        }
+    )
+
+
+    matches=[]
+
+
+    for game in data.get("response", []):
+
+        matches.append({
+
+            "id":
+            game["fixture"]["id"],
+
+            "Heim":
+            game["teams"]["home"]["name"],
+
+            "Auswärts":
+            game["teams"]["away"]["name"],
+
+            "Liga":
+            game["league"]["name"],
+
+            "Land":
+            game["league"]["country"],
+
+            "home_id":
+            game["teams"]["home"]["id"],
+
+            "away_id":
+            game["teams"]["away"]["id"]
+
+        })
+
+
+    return matches
+
+
+
+# ==========================
+# AI EDGE ENGINE
+# ==========================
+
+
+def calculate_edge_score():
+
+    # Grundgerüst
+    # später automatische API-Werte
+
+
+    form = 10
+    home_away = 10
+    h2h = 5
+    squad = 8
+    motivation = 5
+    tactics = 5
+    history = 3
+    value = 5
+
+
+    total = (
+        form +
+        home_away +
+        h2h +
+        squad +
+        motivation +
+        tactics +
+        history +
+        value
+    )
+
+
+    return {
+
+        "Gesamt": total,
+
+        "Form": form,
+
+        "Heim/Auswärts": home_away,
+
+        "H2H": h2h,
+
+        "Kader": squad,
+
+        "Motivation": motivation,
+
+        "Taktik": tactics,
+
+        "Historie": history,
+
+        "Value": value
+
+    }
+
+
+
+# ==========================
+# APP
 # ==========================
 
 
@@ -114,119 +200,17 @@ st.subheader(
 
 
 
-data = get_matches()
+matches = get_today_matches()
 
-
-
-# ==========================
-# LIGEN FILTER
-# ==========================
-
-
-wichtige_ligen = [
-
-    "UEFA Champions League",
-
-    "UEFA Europa League",
-
-    "UEFA Europa Conference League",
-
-    "Bundesliga",
-
-    "2. Bundesliga",
-
-    "Premier League",
-
-    "Championship",
-
-    "La Liga",
-
-    "Serie A",
-
-    "Ligue 1",
-
-    "Eredivisie",
-
-    "Liga Portugal",
-
-    "Belgian Pro League",
-
-    "Super Lig",
-
-    "Major League Soccer",
-
-    "Brasileirão Série A",
-
-    "Liga Profesional Argentina",
-
-    "Eliteserien",
-
-    "Allsvenskan"
-
-]
-
-
-
-matches = []
-
-
-for game in data.get("response", []):
-
-
-    liga = game["league"]["name"]
-
-
-    if liga in wichtige_ligen:
-
-
-        matches.append({
-
-            "Liga":
-            liga,
-
-
-            "Land":
-            game["league"]["country"],
-
-
-            "Heim":
-            game["teams"]["home"]["name"],
-
-
-            "Auswärts":
-            game["teams"]["away"]["name"],
-
-
-            "Zeit":
-            game["fixture"]["date"]
-
-
-        })
-
-
-
-# ==========================
-# AUSGABE
-# ==========================
 
 
 if not matches:
 
     st.warning(
-        "Keine Spiele in den ausgewählten Ligen gefunden."
-    )
-
-    st.info(
-        "Heute sind möglicherweise nur kleinere Ligen aktiv."
+        "Keine Spiele gefunden"
     )
 
     st.stop()
-
-
-
-st.success(
-    f"{len(matches)} relevante Spiele gefunden"
-)
 
 
 
@@ -234,59 +218,49 @@ df = pd.DataFrame(matches)
 
 
 
-# Suche
-
-suche = st.text_input(
-    "🔎 Team oder Liga suchen:"
+st.success(
+    f"{len(df)} Spiele geladen"
 )
 
 
-if suche:
+
+# Filter
+
+liga = st.selectbox(
+    "Liga:",
+    ["Alle"] +
+    sorted(df["Liga"].unique())
+)
+
+
+if liga != "Alle":
 
     df = df[
-        df.astype(str)
-        .apply(
-            lambda x:
-            x.str.contains(
-                suche,
-                case=False
-            )
-        )
-        .any(axis=1)
+        df["Liga"] == liga
     ]
 
 
 
-st.dataframe(
-    df,
-    use_container_width=True
-)
-
-
-
-# ==========================
-# SPIEL AUSWAHL
-# ==========================
-
-
-spiele = [
-
-    f"{row['Heim']} - {row['Auswärts']} ({row['Liga']})"
-
-    for _,row in df.iterrows()
-
-]
-
-
 auswahl = st.selectbox(
-    "⚽ Spiel auswählen:",
-    spiele
+
+    "⚽ Spiel auswählen",
+
+    [
+        f"{x['Heim']} - {x['Auswärts']}"
+
+        for _,x in df.iterrows()
+
+    ]
+
 )
 
 
 
 spiel = df.iloc[
-    spiele.index(auswahl)
+    [
+        f"{x['Heim']} - {x['Auswärts']}"
+        for _,x in df.iterrows()
+    ].index(auswahl)
 ]
 
 
@@ -294,55 +268,26 @@ spiel = df.iloc[
 st.divider()
 
 
-st.subheader(
-    "🎯 Analyse Vorbereitung"
+
+st.header(
+    f"{spiel['Heim']} 🆚 {spiel['Auswärts']}"
 )
 
 
 
-c1,c2,c3 = st.columns(3)
-
-
-with c1:
-
-    st.metric(
-        "Heim",
-        spiel["Heim"]
-    )
-
-
-with c2:
-
-    st.metric(
-        "Auswärts",
-        spiel["Auswärts"]
-    )
-
-
-with c3:
-
-    st.metric(
-        "Liga",
-        spiel["Liga"]
-    )
-
-
-
-st.info(
-    f"""
-    Spielzeit:
-    {spiel['Zeit']}
-    
-    Land:
-    {spiel['Land']}
-    """
+st.write(
+    f"Liga: {spiel['Liga']}"
 )
 
 
 
 # ==========================
-# NÄCHSTER SCHRITT
+# SCORE
 # ==========================
+
+
+score = calculate_edge_score()
+
 
 
 st.divider()
@@ -354,11 +299,45 @@ st.subheader(
 
 
 st.metric(
-    "Score",
-    "Wird berechnet..."
+    "Gesamtbewertung",
+    f"{score['Gesamt']}/100"
 )
 
 
+
+score_df = pd.DataFrame(
+    score.items(),
+    columns=[
+        "Bereich",
+        "Punkte"
+    ]
+)
+
+
+st.table(score_df)
+
+
+
+if score["Gesamt"] >= 75:
+
+    st.success(
+        "🟢 Starkes Analyseprofil"
+    )
+
+elif score["Gesamt"] >= 60:
+
+    st.info(
+        "🟡 Interessantes Spiel"
+    )
+
+else:
+
+    st.warning(
+        "🔴 Kein starkes Signal"
+    )
+
+
+
 st.caption(
-    "Nächster Ausbau: Form, H2H, Quoten, xG, Kader, Motivation und Value."
+    "Version 2.0 - AI Edge Framework aktiv"
 )
