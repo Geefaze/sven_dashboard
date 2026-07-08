@@ -1,48 +1,15 @@
-import streamlit as st
+for match in matches:
 
-st.write("Test gestartet")
+    with st.expander(
+        f"⚽ {match['home']} - {match['away']}"
+    ):
 
-st.write(st.secrets["API_KEY"])import streamlit as st
-from api import get_today_matches
-
-
-st.set_page_config(
-    page_title="Sven AI Betting Cockpit",
-    layout="wide"
-)
-
-
-st.title("⚽ Sven's AI Betting Cockpit")
-
-
-st.subheader("📅 Heutige Spiele")
-
-
-try:
-
-    matches = get_today_matches()
-
-
-    if len(matches) == 0:
-
-        st.warning(
-            "Keine Spiele gefunden"
+        st.write(
+            f"""
+            🏆 Liga: {match['league']}
+            
+            🌍 Land: {match['country']}
+            
+            🕒 Zeit: {match['date']}
+            """
         )
-
-    else:
-
-        st.success(
-            f"{len(matches)} Spiele gefunden"
-        )
-
-
-        for match in matches:
-
-            st.write(
-                f"⚽ {match['home']} - {match['away']} | {match['league']}"
-            )
-
-
-except Exception as e:
-
-    st.error(e)
