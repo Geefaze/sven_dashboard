@@ -4,10 +4,6 @@ import pandas as pd
 from datetime import datetime
 
 
-# ==========================
-# SETUP
-# ==========================
-
 st.set_page_config(
     page_title="Sven AI Betting Cockpit",
     page_icon="⚽",
@@ -16,7 +12,6 @@ st.set_page_config(
 
 
 API_URL = "https://v3.football.api-sports.io"
-
 
 
 # ==========================
@@ -31,14 +26,14 @@ if not st.session_state.password_correct:
 
     st.title("🔒 Sven's AI Betting Cockpit")
 
-    password = st.text_input(
+    pw = st.text_input(
         "Passwort:",
         type="password"
     )
 
     if st.button("Anmelden"):
 
-        if password == "Sven2026":
+        if pw == "Sven2026":
             st.session_state.password_correct = True
             st.rerun()
 
@@ -50,40 +45,40 @@ if not st.session_state.password_correct:
 
 
 # ==========================
-# API FUNKTION
+# API
 # ==========================
 
-@st.cache_data(ttl=1800)
-def api_call(endpoint, params):
+
+def api_get(endpoint, params):
 
     headers = {
-        "x-apisports-key":
-        st.secrets["API_KEY"]
+        "x-apisports-key": st.secrets["API_KEY"]
     }
 
 
-    response = requests.get(
+    r = requests.get(
         f"{API_URL}/{endpoint}",
         headers=headers,
         params=params
     )
 
 
-    return response.json()
+    return r.json()
 
 
 
 # ==========================
-# SPIELE HEUTE
+# SPIELE
 # ==========================
+
 
 @st.cache_data(ttl=1800)
-def get_today_matches():
+def get_today_games():
 
     today = datetime.now().strftime("%Y-%m-%d")
 
 
-    data = api_call(
+    data = api_get(
         "fixtures",
         {
             "date": today,
@@ -92,95 +87,161 @@ def get_today_matches():
     )
 
 
-    matches=[]
+    games=[]
 
 
-    for game in data.get("response", []):
+    for g in data.get("response", []):
 
-        matches.append({
-
-            "id":
-            game["fixture"]["id"],
+        games.append({
 
             "Heim":
-            game["teams"]["home"]["name"],
+            g["teams"]["home"]["name"],
 
             "Auswärts":
-            game["teams"]["away"]["name"],
-
-            "Liga":
-            game["league"]["name"],
-
-            "Land":
-            game["league"]["country"],
+            g["teams"]["away"]["name"],
 
             "home_id":
-            game["teams"]["home"]["id"],
+            g["teams"]["home"]["id"],
 
             "away_id":
-            game["teams"]["away"]["id"]
+            g["teams"]["away"]["id"],
+
+            "Liga":
+            g["league"]["name"],
+
+            "Zeit":
+            g["fixture"]["date"]
 
         })
 
 
-    return matches
+    return games
 
 
 
 # ==========================
-# AI EDGE ENGINE
+# FORM
 # ==========================
 
 
-def calculate_edge_score():
-
-    # Grundgerüst
-    # später automatische API-Werte
+@st.cache_data(ttl=3600)
+def get_team_form(team_id):
 
 
-    form = 10
-    home_away = 10
-    h2h = 5
-    squad = 8
-    motivation = 5
-    tactics = 5
-    history = 3
-    value = 5
+    data = api_get(
 
+        "fixtures",
 
-    total = (
-        form +
-        home_away +
-        h2h +
-        squad +
-        motivation +
-        tactics +
-        history +
-        value
+        {
+            "team": team_id,
+            "last": 5
+        }
+
     )
 
 
-    return {
+    spiele = []
 
-        "Gesamt": total,
 
-        "Form": form,
+    for g in data.get("response", []):
 
-        "Heim/Auswärts": home_away,
 
-        "H2H": h2h,
+        home = g["teams"]["home"]
 
-        "Kader": squad,
+        away = g["teams"]["away"]
 
-        "Motivation": motivation,
+        tore_home = g["goals"]["home"]
 
-        "Taktik": tactics,
+        tore_away = g["goals"]["away"]
 
-        "Historie": history,
 
-        "Value": value
+        if tore_home is None:
+            continue
 
-    }
+
+        if home["id"] == team_id:
+
+            tore_fuer = tore_home
+            tore_gegen = tore_away
+
+            sieg = home["winner"]
+
+
+        else:
+
+            tore_fuer = tore_away
+            tore_gegen = tore_home
+
+            sieg = away["winner"]
+
+
+
+        spiele.append({
+
+            "Tore": tore_fuer,
+
+            "Gegentore":
+            tore_gegen,
+
+            "Sieg":
+            sieg
+
+        })
+
+
+    return spiele
+
+
+
+def form_score(form):
+
+    if not form:
+        return 5
+
+
+    punkte = 0
+
+
+    for spiel in form:
+
+        if spiel["Sieg"]:
+            punkte += 3
+
+        elif spiel["Sieg"] is None:
+            punkte += 1
+
+
+    return min(
+        round(punkte / 15 * 20),
+        20
+    )
+
+
+
+# ==========================
+# AI EDGE
+# ==========================
+
+
+def calculate_edge(home_form, away_form):
+
+
+    heim = form_score(home_form)
+
+    auswaerts = form_score(away_form)
+
+
+    gesamt = round(
+        40 +
+        (heim * 1.5) +
+        (auswaerts * 1.2)
+    )
+
+
+    return min(
+        gesamt,
+        100
+    )
 
 
 
@@ -200,11 +261,11 @@ st.subheader(
 
 
 
-matches = get_today_matches()
+games = get_today_games()
 
 
 
-if not matches:
+if not games:
 
     st.warning(
         "Keine Spiele gefunden"
@@ -214,7 +275,7 @@ if not matches:
 
 
 
-df = pd.DataFrame(matches)
+df = pd.DataFrame(games)
 
 
 
@@ -224,26 +285,9 @@ st.success(
 
 
 
-# Filter
+choice = st.selectbox(
 
-liga = st.selectbox(
-    "Liga:",
-    ["Alle"] +
-    sorted(df["Liga"].unique())
-)
-
-
-if liga != "Alle":
-
-    df = df[
-        df["Liga"] == liga
-    ]
-
-
-
-auswahl = st.selectbox(
-
-    "⚽ Spiel auswählen",
+    "Spiel auswählen",
 
     [
         f"{x['Heim']} - {x['Auswärts']}"
@@ -256,41 +300,50 @@ auswahl = st.selectbox(
 
 
 
-spiel = df.iloc[
-    [
-        f"{x['Heim']} - {x['Auswärts']}"
-        for _,x in df.iterrows()
-    ].index(auswahl)
-]
+index = [
+    f"{x['Heim']} - {x['Auswärts']}"
+
+    for _,x in df.iterrows()
+
+].index(choice)
+
+
+
+match = games[index]
 
 
 
 st.divider()
-
 
 
 st.header(
-    f"{spiel['Heim']} 🆚 {spiel['Auswärts']}"
+    f"{match['Heim']} 🆚 {match['Auswärts']}"
 )
 
 
 
-st.write(
-    f"Liga: {spiel['Liga']}"
+# FORM LADEN
+
+
+with st.spinner(
+    "Analysiere Form..."
+):
+
+    home_form = get_team_form(
+        match["home_id"]
+    )
+
+    away_form = get_team_form(
+        match["away_id"]
+    )
+
+
+
+score = calculate_edge(
+    home_form,
+    away_form
 )
 
-
-
-# ==========================
-# SCORE
-# ==========================
-
-
-score = calculate_edge_score()
-
-
-
-st.divider()
 
 
 st.subheader(
@@ -299,45 +352,57 @@ st.subheader(
 
 
 st.metric(
-    "Gesamtbewertung",
-    f"{score['Gesamt']}/100"
+    "Gesamt",
+    f"{score}/100"
 )
 
 
 
-score_df = pd.DataFrame(
-    score.items(),
-    columns=[
-        "Bereich",
-        "Punkte"
-    ]
-)
+c1,c2 = st.columns(2)
 
 
-st.table(score_df)
+with c1:
 
-
-
-if score["Gesamt"] >= 75:
-
-    st.success(
-        "🟢 Starkes Analyseprofil"
+    st.write(
+        "🏠 Heim letzte Spiele"
     )
 
-elif score["Gesamt"] >= 60:
+    st.dataframe(
+        pd.DataFrame(home_form)
+    )
+
+
+with c2:
+
+    st.write(
+        "✈️ Auswärts letzte Spiele"
+    )
+
+    st.dataframe(
+        pd.DataFrame(away_form)
+    )
+
+
+
+if score >= 75:
+
+    st.success(
+        "🟢 Starkes Signal"
+    )
+
+elif score >= 60:
 
     st.info(
-        "🟡 Interessantes Spiel"
+        "🟡 Beobachten"
     )
 
 else:
 
     st.warning(
-        "🔴 Kein starkes Signal"
+        "🔴 Kein klares Signal"
     )
 
 
-
 st.caption(
-    "Version 2.0 - AI Edge Framework aktiv"
+    "Version 2.1 - Form Engine aktiv"
 )
