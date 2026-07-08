@@ -24,7 +24,7 @@ if "password_correct" not in st.session_state:
 
 if not st.session_state.password_correct:
 
-    st.title("🔒 Sven's AI Betting Cockpit")
+    st.title("🔒 Sven AI Betting Cockpit")
 
     pw = st.text_input(
         "Passwort:",
@@ -48,22 +48,27 @@ if not st.session_state.password_correct:
 # API
 # ==========================
 
-
 def api_get(endpoint, params):
 
     headers = {
-        "x-apisports-key": st.secrets["API_KEY"]
+        "x-apisports-key":
+        st.secrets["API_KEY"]
     }
 
+    try:
 
-    r = requests.get(
-        f"{API_URL}/{endpoint}",
-        headers=headers,
-        params=params
-    )
+        r = requests.get(
+            f"{API_URL}/{endpoint}",
+            headers=headers,
+            params=params,
+            timeout=10
+        )
 
+        return r.json()
 
-    return r.json()
+    except:
+
+        return {}
 
 
 
@@ -71,12 +76,10 @@ def api_get(endpoint, params):
 # SPIELE
 # ==========================
 
-
 @st.cache_data(ttl=1800)
-def get_today_games():
+def get_games():
 
     today = datetime.now().strftime("%Y-%m-%d")
-
 
     data = api_get(
         "fixtures",
@@ -107,10 +110,7 @@ def get_today_games():
             g["teams"]["away"]["id"],
 
             "Liga":
-            g["league"]["name"],
-
-            "Zeit":
-            g["fixture"]["date"]
+            g["league"]["name"]
 
         })
 
@@ -120,65 +120,55 @@ def get_today_games():
 
 
 # ==========================
-# FORM
+# LETZTE SPIELE
 # ==========================
 
-
 @st.cache_data(ttl=3600)
-def get_team_form(team_id):
-
+def last_games(team_id):
 
     data = api_get(
-
         "fixtures",
-
         {
             "team": team_id,
-            "last": 5
+            "last":5
         }
-
     )
 
 
-    spiele = []
+    spiele=[]
 
 
     for g in data.get("response", []):
 
-
-        home = g["teams"]["home"]
-
-        away = g["teams"]["away"]
-
-        tore_home = g["goals"]["home"]
-
-        tore_away = g["goals"]["away"]
-
-
-        if tore_home is None:
+        if g["goals"]["home"] is None:
             continue
+
+
+        home=g["teams"]["home"]
+
+        away=g["teams"]["away"]
 
 
         if home["id"] == team_id:
 
-            tore_fuer = tore_home
-            tore_gegen = tore_away
+            tore_fuer=g["goals"]["home"]
+            tore_gegen=g["goals"]["away"]
 
-            sieg = home["winner"]
-
+            sieg=home["winner"]
 
         else:
 
-            tore_fuer = tore_away
-            tore_gegen = tore_home
+            tore_fuer=g["goals"]["away"]
+            tore_gegen=g["goals"]["home"]
 
-            sieg = away["winner"]
+            sieg=away["winner"]
 
 
 
         spiele.append({
 
-            "Tore": tore_fuer,
+            "Tore":
+            tore_fuer,
 
             "Gegentore":
             tore_gegen,
@@ -193,54 +183,99 @@ def get_team_form(team_id):
 
 
 
-def form_score(form):
+# ==========================
+# H2H
+# ==========================
 
-    if not form:
-        return 5
+@st.cache_data(ttl=86400)
+def get_h2h(team1,team2):
+
+    data=api_get(
+        "fixtures/headtohead",
+        {
+            "h2h":
+            f"{team1}-{team2}",
+
+            "last":5
+        }
+    )
 
 
-    punkte = 0
+    return data.get(
+        "response",
+        []
+    )
 
 
-    for spiel in form:
 
-        if spiel["Sieg"]:
-            punkte += 3
+# ==========================
+# SCORE FUNKTIONEN
+# ==========================
 
-        elif spiel["Sieg"] is None:
-            punkte += 1
+
+def form_points(data):
+
+    punkte=0
+
+
+    for x in data:
+
+        if x["Sieg"]:
+
+            punkte+=3
+
+        elif x["Sieg"] is None:
+
+            punkte+=1
 
 
     return min(
-        round(punkte / 15 * 20),
+        round((punkte/15)*20),
         20
     )
 
 
 
-# ==========================
-# AI EDGE
-# ==========================
+def goal_points(data):
+
+    if not data:
+        return 5
 
 
-def calculate_edge(home_form, away_form):
-
-
-    heim = form_score(home_form)
-
-    auswaerts = form_score(away_form)
-
-
-    gesamt = round(
-        40 +
-        (heim * 1.5) +
-        (auswaerts * 1.2)
+    tore=sum(
+        x["Tore"]
+        for x in data
     )
 
 
+    geg=sum(
+        x["Gegentore"]
+        for x in data
+    )
+
+
+    wert=5+(tore-geg)/2
+
+
+    return max(
+        0,
+        min(
+            10,
+            round(wert)
+        )
+    )
+
+
+
+def h2h_points(data):
+
+    if not data:
+        return 5
+
+
     return min(
-        gesamt,
-        100
+        10,
+        5+len(data)
     )
 
 
@@ -251,18 +286,11 @@ def calculate_edge(home_form, away_form):
 
 
 st.title(
-    "⚽ Sven's AI Betting Cockpit"
+    "⚽ Sven AI Betting Cockpit"
 )
 
 
-st.subheader(
-    "📅 Tagesaktueller Match Scanner"
-)
-
-
-
-games = get_today_games()
-
+games=get_games()
 
 
 if not games:
@@ -275,7 +303,7 @@ if not games:
 
 
 
-df = pd.DataFrame(games)
+df=pd.DataFrame(games)
 
 
 
@@ -285,14 +313,14 @@ st.success(
 
 
 
-choice = st.selectbox(
+auswahl=st.selectbox(
 
     "Spiel auswählen",
 
     [
         f"{x['Heim']} - {x['Auswärts']}"
 
-        for _,x in df.iterrows()
+        for x in games
 
     ]
 
@@ -300,20 +328,17 @@ choice = st.selectbox(
 
 
 
-index = [
+idx=[
     f"{x['Heim']} - {x['Auswärts']}"
 
-    for _,x in df.iterrows()
+    for x in games
 
-].index(choice)
-
-
-
-match = games[index]
+].index(auswahl)
 
 
 
-st.divider()
+match=games[idx]
+
 
 
 st.header(
@@ -321,30 +346,60 @@ st.header(
 )
 
 
-
-# FORM LADEN
-
-
-with st.spinner(
-    "Analysiere Form..."
-):
-
-    home_form = get_team_form(
-        match["home_id"]
-    )
-
-    away_form = get_team_form(
-        match["away_id"]
-    )
-
-
-
-score = calculate_edge(
-    home_form,
-    away_form
+heim_form=last_games(
+    match["home_id"]
 )
 
 
+aus_form=last_games(
+    match["away_id"]
+)
+
+
+h2h=get_h2h(
+    match["home_id"],
+    match["away_id"]
+)
+
+
+form_score=(
+    form_points(heim_form)
+    +
+    form_points(aus_form)
+)/2
+
+
+tor_score=(
+    goal_points(heim_form)
+    +
+    goal_points(aus_form)
+)/2
+
+
+h2h_score=h2h_points(h2h)
+
+
+
+edge=round(
+    form_score
+    +
+    tor_score
+    +
+    h2h_score
+    +
+    35
+)
+
+
+
+edge=min(
+    100,
+    edge
+)
+
+
+
+st.divider()
 
 st.subheader(
     "🤖 AI Edge Score"
@@ -353,56 +408,35 @@ st.subheader(
 
 st.metric(
     "Gesamt",
-    f"{score}/100"
+    f"{edge}/100"
 )
 
 
+score_table=pd.DataFrame({
 
-c1,c2 = st.columns(2)
+    "Säule":[
+        "Form",
+        "Torprofil",
+        "H2H",
+        "Heim/Auswärts",
+        "Motivation",
+        "Kader",
+        "Taktik",
+        "Value"
+    ],
 
+    "Punkte":[
+        f"{round(form_score)}/20",
+        f"{round(tor_score)}/10",
+        f"{h2h_score}/10",
+        "Basis",
+        "Basis",
+        "Offen",
+        "Offen",
+        "Offen"
+    ]
 
-with c1:
-
-    st.write(
-        "🏠 Heim letzte Spiele"
-    )
-
-    st.dataframe(
-        pd.DataFrame(home_form)
-    )
-
-
-with c2:
-
-    st.write(
-        "✈️ Auswärts letzte Spiele"
-    )
-
-    st.dataframe(
-        pd.DataFrame(away_form)
-    )
-
-
-
-if score >= 75:
-
-    st.success(
-        "🟢 Starkes Signal"
-    )
-
-elif score >= 60:
-
-    st.info(
-        "🟡 Beobachten"
-    )
-
-else:
-
-    st.warning(
-        "🔴 Kein klares Signal"
-    )
+})
 
 
-st.caption(
-    "Version 2.1 - Form Engine aktiv"
-)
+st.table(score_table)
