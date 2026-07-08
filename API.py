@@ -1,4 +1,6 @@
-import requests
+import streamlit as st
+
+st.write("🔥 NEUE API.PY GELADEN")import requests
 import streamlit as st
 from datetime import datetime
 import pytz
