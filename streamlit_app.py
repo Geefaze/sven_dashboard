@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -30,7 +30,7 @@ if not st.session_state.logged_in:
 
     st.title("🔒 Sven AI Betting Cockpit")
 
-    pw = st.text_input(
+    password = st.text_input(
         "Passwort",
         type="password"
     )
@@ -38,7 +38,7 @@ if not st.session_state.logged_in:
 
     if st.button("Anmelden"):
 
-        if pw == "Sven2026":
+        if password == "Sven2026":
 
             st.session_state.logged_in = True
             st.rerun()
@@ -75,16 +75,14 @@ def api_get(endpoint):
         return r.json()
 
 
-    except Exception as e:
+    except:
 
-        return {
-            "error": str(e)
-        }
+        return {}
 
 
 
 # ==========================
-# COMPETITIONS
+# DATEN
 # ==========================
 
 @st.cache_data(ttl=3600)
@@ -100,10 +98,6 @@ def get_competitions():
     )
 
 
-
-# ==========================
-# MATCHES
-# ==========================
 
 @st.cache_data(ttl=900)
 def get_matches(comp_id):
@@ -121,10 +115,6 @@ def get_matches(comp_id):
 
 
 
-# ==========================
-# TABLE
-# ==========================
-
 @st.cache_data(ttl=3600)
 def get_table(comp_id):
 
@@ -133,7 +123,6 @@ def get_table(comp_id):
         f"/competitions/{comp_id}/standings"
 
     )
-
 
     try:
 
@@ -146,28 +135,27 @@ def get_table(comp_id):
 
 
 # ==========================
-# AI EDGE SCORE
+# AI EDGE
 # ==========================
 
-def edge_score(home_id, away_id, table):
+def calculate_edge(home, away, table):
 
     score = 50
-
 
     home_pos = 10
     away_pos = 10
 
 
-    for t in table:
+    for team in table:
 
-        if t["team"]["id"] == home_id:
+        if team["team"]["id"] == home:
 
-            home_pos = t["position"]
+            home_pos = team["position"]
 
 
-        if t["team"]["id"] == away_id:
+        if team["team"]["id"] == away:
 
-            away_pos = t["position"]
+            away_pos = team["position"]
 
 
 
@@ -185,12 +173,33 @@ def edge_score(home_id, away_id, table):
 
 
 # ==========================
-# START
+# APP START
 # ==========================
+
 
 st.title(
     "⚽ Sven AI Betting Cockpit"
 )
+
+
+
+now = datetime.now(
+    ZoneInfo("Europe/Berlin")
+)
+
+
+limit = now + timedelta(
+    hours=48
+)
+
+
+
+st.info(
+
+    f"📅 Scanner: {now.strftime('%d.%m.%Y %H:%M')} bis {limit.strftime('%d.%m.%Y %H:%M')}"
+
+)
+
 
 
 competitions = get_competitions()
@@ -203,11 +212,8 @@ st.sidebar.header(
 
 
 st.sidebar.write(
-
     "Wettbewerbe:",
-
     len(competitions)
-
 )
 
 
@@ -230,21 +236,18 @@ progress = st.progress(0)
 
 
 
-for i, comp in enumerate(competitions):
+for index, comp in enumerate(competitions):
 
 
     matches = get_matches(
-
         comp["id"]
-
     )
 
 
     table = get_table(
-
         comp["id"]
-
     )
+
 
 
     for m in matches:
@@ -255,9 +258,11 @@ for i, comp in enumerate(competitions):
             continue
 
 
+
         if m["status"] == "FINISHED":
 
             continue
+
 
 
         try:
@@ -265,11 +270,8 @@ for i, comp in enumerate(competitions):
             dt = datetime.fromisoformat(
 
                 m["utcDate"].replace(
-
                     "Z",
-
                     "+00:00"
-
                 )
 
             ).astimezone(
@@ -286,6 +288,19 @@ for i, comp in enumerate(competitions):
 
 
 
+        # NUR NÄCHSTE 48 STUNDEN
+
+        if dt < now:
+
+            continue
+
+
+        if dt > limit:
+
+            continue
+
+
+
         games.append({
 
             "Liga":
@@ -294,9 +309,7 @@ for i, comp in enumerate(competitions):
 
             "Datum":
             dt.strftime(
-
                 "%d.%m.%Y %H:%M"
-
             ),
 
 
@@ -317,7 +330,7 @@ for i, comp in enumerate(competitions):
 
 
             "AI Edge":
-            edge_score(
+            calculate_edge(
 
                 m["homeTeam"]["id"],
 
@@ -331,9 +344,7 @@ for i, comp in enumerate(competitions):
 
 
     progress.progress(
-
-        (i+1)/len(competitions)
-
+        (index + 1) / len(competitions)
     )
     # ==========================
 # AUSWERTUNG
@@ -341,11 +352,8 @@ for i, comp in enumerate(competitions):
 
 
 st.sidebar.write(
-
     "Gefundene Spiele:",
-
     len(games)
-
 )
 
 
@@ -353,18 +361,12 @@ st.sidebar.write(
 if not games:
 
     st.warning(
-
-        "Keine zukünftigen Spiele gefunden"
-
+        "Keine Spiele in den nächsten 48 Stunden gefunden"
     )
-
 
     st.info(
-
-        "Die API hat zwar Wettbewerbe geliefert, aber aktuell keine offenen Spiele."
-
+        "Die API liefert aktuell keine passenden offenen Spiele."
     )
-
 
     st.stop()
 
@@ -373,6 +375,8 @@ if not games:
 df = pd.DataFrame(games)
 
 
+
+# nach AI Edge sortieren
 
 df = df.sort_values(
 
@@ -386,14 +390,14 @@ df = df.sort_values(
 
 st.success(
 
-    f"{len(df)} Spiele gefunden"
+    f"{len(df)} Spiele in den nächsten 48 Stunden gefunden"
 
 )
 
 
 
 # ==========================
-# RANKING
+# TOP RANKING
 # ==========================
 
 
@@ -401,9 +405,7 @@ st.divider()
 
 
 st.header(
-
     "🔥 AI Match Ranking"
-
 )
 
 
@@ -443,14 +445,12 @@ st.divider()
 
 
 st.header(
-
     "⚽ Spielanalyse"
-
 )
 
 
 
-spiel_liste = [
+spiele = [
 
     f"{x['Heim']} - {x['Auswärts']}"
 
@@ -464,7 +464,7 @@ auswahl = st.selectbox(
 
     "Spiel auswählen",
 
-    spiel_liste
+    spiele
 
 )
 
@@ -472,7 +472,7 @@ auswahl = st.selectbox(
 
 match = games[
 
-    spiel_liste.index(auswahl)
+    spiele.index(auswahl)
 
 ]
 
@@ -501,7 +501,7 @@ st.metric(
 
 
 # ==========================
-# 8 SÄULEN
+# 8 SÄULEN SYSTEM
 # ==========================
 
 
@@ -509,16 +509,14 @@ st.divider()
 
 
 st.subheader(
-
-    "📊 8-Säulen-System"
-
+    "📊 8-Säulen Analyse"
 )
 
 
 
-saeulen = pd.DataFrame({
+analyse = pd.DataFrame({
 
-    "Bereich":[
+    "Säule":[
 
         "Form",
 
@@ -538,7 +536,8 @@ saeulen = pd.DataFrame({
 
     ],
 
-    "Bewertung":[
+
+    "Status":[
 
         "Basis",
 
@@ -561,11 +560,8 @@ saeulen = pd.DataFrame({
 })
 
 
-
 st.table(
-
-    saeulen
-
+    analyse
 )
 
 
@@ -579,16 +575,14 @@ st.divider()
 
 
 st.subheader(
-
     "🎯 Wett-Engine"
-
 )
 
 
 
 quote = st.number_input(
 
-    "Quote eingeben",
+    "Buchmacher Quote",
 
     min_value=1.01,
 
@@ -606,9 +600,9 @@ chance = edge / 100
 
 
 
-faire_quote = round(
+fair_quote = round(
 
-    1/chance,
+    1 / chance,
 
     2
 
@@ -618,7 +612,7 @@ faire_quote = round(
 
 value = round(
 
-    ((quote * chance)-1)*100,
+    ((quote * chance) - 1) * 100,
 
     1
 
@@ -626,33 +620,33 @@ value = round(
 
 
 
-a,b,c = st.columns(3)
+col1,col2,col3 = st.columns(3)
 
 
 
-with a:
+with col1:
 
     st.metric(
 
-        "Modellwahrscheinlichkeit",
+        "Modellchance",
 
         f"{chance*100:.1f}%"
 
     )
 
 
-with b:
+with col2:
 
     st.metric(
 
         "Faire Quote",
 
-        faire_quote
+        fair_quote
 
     )
 
 
-with c:
+with col3:
 
     st.metric(
 
@@ -667,25 +661,19 @@ with c:
 if value >= 10:
 
     st.success(
-
-        "🟢 Value Bet"
-
+        "🟢 VALUE BET"
     )
 
 elif value >= 0:
 
     st.info(
-
         "🟡 Kleine Kante"
-
     )
 
 else:
 
     st.warning(
-
         "🔴 Kein Value"
-
     )
 
 
@@ -699,16 +687,14 @@ st.divider()
 
 
 st.subheader(
-
     "💰 Bankroll"
-
 )
 
 
 
 bankroll = st.number_input(
 
-    "Kontostand €",
+    "Kontostand (€)",
 
     min_value=1.0,
 
