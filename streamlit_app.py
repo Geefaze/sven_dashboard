@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -35,6 +35,7 @@ if not st.session_state.logged_in:
         type="password"
     )
 
+
     if st.button("Anmelden"):
 
         if password == "Sven2026":
@@ -46,6 +47,7 @@ if not st.session_state.logged_in:
 
             st.error("Falsches Passwort")
 
+
     st.stop()
 
 
@@ -54,11 +56,11 @@ if not st.session_state.logged_in:
 # API
 # ==========================
 
-def api_call(endpoint):
+def api_get(endpoint):
 
     try:
 
-        r = requests.get(
+        response = requests.get(
 
             API_URL + endpoint,
 
@@ -70,14 +72,12 @@ def api_call(endpoint):
 
         )
 
-        return r.json()
+        return response.json()
 
 
     except Exception as e:
 
-        return {
-            "error": str(e)
-        }
+        return {}
 
 
 
@@ -88,7 +88,7 @@ def api_call(endpoint):
 @st.cache_data(ttl=3600)
 def get_competitions():
 
-    data = api_call(
+    data = api_get(
         "/competitions"
     )
 
@@ -100,13 +100,13 @@ def get_competitions():
 
 
 # ==========================
-# SPIELE
+# SPIELE EINER LIGA
 # ==========================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def get_matches(comp_id):
 
-    data = api_call(
+    data = api_get(
 
         f"/competitions/{comp_id}/matches"
 
@@ -126,11 +126,12 @@ def get_matches(comp_id):
 @st.cache_data(ttl=3600)
 def get_table(comp_id):
 
-    data = api_call(
+    data = api_get(
 
         f"/competitions/{comp_id}/standings"
 
     )
+
 
     try:
 
@@ -143,10 +144,10 @@ def get_table(comp_id):
 
 
 # ==========================
-# AI SCORE
+# AI EDGE SCORE
 # ==========================
 
-def calculate_score(home_id, away_id, table):
+def calculate_edge(home, away, table):
 
     score = 50
 
@@ -156,11 +157,13 @@ def calculate_score(home_id, away_id, table):
 
     for t in table:
 
-        if t["team"]["id"] == home_id:
+        if t["team"]["id"] == home:
+
             home_pos = t["position"]
 
 
-        if t["team"]["id"] == away_id:
+        if t["team"]["id"] == away:
+
             away_pos = t["position"]
 
 
@@ -182,20 +185,29 @@ def calculate_score(home_id, away_id, table):
 # START
 # ==========================
 
-
 st.title(
     "⚽ Sven AI Betting Cockpit"
 )
 
 
-today = datetime.now(
+
+now = datetime.now(
     ZoneInfo("Europe/Berlin")
-).strftime("%Y-%m-%d")
+)
+
+
+
+today = now.date()
+
+
+end_day = today + timedelta(days=7)
 
 
 
 st.info(
-    f"📅 Scanner Datum: {today}"
+
+    f"📅 Scanner: {today.strftime('%d.%m.%Y')} bis {end_day.strftime('%d.%m.%Y')}"
+
 )
 
 
@@ -210,7 +222,7 @@ st.sidebar.subheader(
 
 
 st.sidebar.write(
-    "Ligen geladen:",
+    "Wettbewerbe:",
     len(competitions)
 )
 
@@ -219,100 +231,54 @@ st.sidebar.write(
 if not competitions:
 
     st.error(
-        "Keine Ligen gefunden"
+        "Keine Wettbewerbe gefunden"
     )
 
     st.stop()
 
 
 
-liga_namen = [
-
-    c["name"]
-
-    for c in competitions
-
-]
+# ==========================
+# ALLE SPIELE SCANNEN
+# ==========================
 
 
-
-liga = st.selectbox(
-
-    "🏆 Liga",
-
-    liga_namen
-
-)
+all_games = []
 
 
 
-competition = next(
-
-    x for x in competitions
-
-    if x["name"] == liga
-
-)
+progress = st.progress(0)
 
 
 
-matches = get_matches(
-
-    competition["id"]
-
-)
+for index, comp in enumerate(competitions):
 
 
+    matches = get_matches(
 
-table = get_table(
+        comp["id"]
 
-    competition["id"]
-
-)
-
+    )
 
 
-games = []
+    table = get_table(
+
+        comp["id"]
+
+    )
 
 
 
-for m in matches:
+    for m in matches:
 
 
-    # nur heutige Spiele
+        if not m.get("homeTeam"):
 
-    if m["utcDate"][:10] != today:
-
-        continue
+            continue
 
 
-    # keine fertigen Spiele
 
-    if m["status"] == "FINISHED":
-
-        continue
-
-
-    games.append({
-
-        "Heim":
-        m["homeTeam"]["name"],
-
-
-        "Auswärts":
-        m["awayTeam"]["name"],
-
-
-        "home_id":
-        m["homeTeam"]["id"],
-
-
-        "away_id":
-        m["awayTeam"]["id"],
-
-
-        "Zeit":
-        datetime.fromisoformat(
+        match_time = datetime.fromisoformat(
 
             m["utcDate"].replace(
                 "Z",
@@ -323,45 +289,92 @@ for m in matches:
 
             ZoneInfo("Europe/Berlin")
 
-        ).strftime(
-            "%H:%M"
-        ),
-
-
-        "AI Edge":
-        calculate_score(
-
-            m["homeTeam"]["id"],
-
-            m["awayTeam"]["id"],
-
-            table
-
         )
 
-    })
+
+
+        if match_time.date() < today:
+
+            continue
 
 
 
-st.sidebar.write(
-    "Heutige Spiele:",
-    len(games)
-)
+        if match_time.date() > end_day:
+
+            continue
 
 
-if not games:
 
-    st.warning(
-        "Heute keine Spiele in dieser Liga gefunden"
+        if m["status"] == "FINISHED":
+
+            continue
+
+
+
+        all_games.append({
+
+            "Liga":
+            comp["name"],
+
+
+            "Zeit":
+            match_time.strftime(
+                "%d.%m.%Y %H:%M"
+            ),
+
+
+            "Heim":
+            m["homeTeam"]["name"],
+
+
+            "Auswärts":
+            m["awayTeam"]["name"],
+
+
+            "home_id":
+            m["homeTeam"]["id"],
+
+
+            "away_id":
+            m["awayTeam"]["id"],
+
+
+            "AI Edge":
+            calculate_edge(
+
+                m["homeTeam"]["id"],
+
+                m["awayTeam"]["id"],
+
+                table
+
+            )
+
+        })
+
+
+    progress.progress(
+
+        (index + 1) / len(competitions)
+
     )
-
-    st.stop()
     # ==========================
-# RANKING
+# AUSWERTUNG
 # ==========================
 
 
-df = pd.DataFrame(games)
+if not all_games:
+
+    st.warning(
+        "Keine Spiele im Zeitraum gefunden"
+    )
+
+    st.stop()
+
+
+
+df = pd.DataFrame(all_games)
+
 
 
 df = df.sort_values(
@@ -374,11 +387,24 @@ df = df.sort_values(
 
 
 
+st.success(
+
+    f"{len(df)} Spiele gefunden"
+
+)
+
+
+
+# ==========================
+# TOP RANKING
+# ==========================
+
+
 st.divider()
 
 
 st.header(
-    "🔥 Tages Ranking"
+    "🔥 AI Match Ranking"
 )
 
 
@@ -388,6 +414,8 @@ st.dataframe(
     df[
 
         [
+
+            "Liga",
 
             "Zeit",
 
@@ -408,7 +436,7 @@ st.dataframe(
 
 
 # ==========================
-# SPIELAUSWAHL
+# SPIEL AUSWAHL
 # ==========================
 
 
@@ -416,34 +444,34 @@ st.divider()
 
 
 st.header(
-    "⚽ Spielanalyse"
+    "⚽ Detailanalyse"
 )
 
 
 
-spiel_namen = [
+match_list = [
 
     f"{x['Heim']} - {x['Auswärts']}"
 
-    for x in games
+    for x in all_games
 
 ]
 
 
 
-auswahl = st.selectbox(
+selected = st.selectbox(
 
     "Spiel auswählen",
 
-    spiel_namen
+    match_list
 
 )
 
 
 
-match = games[
+match = all_games[
 
-    spiel_namen.index(auswahl)
+    match_list.index(selected)
 
 ]
 
@@ -457,7 +485,7 @@ st.subheader(
 
 
 
-score = match["AI Edge"]
+edge = match["AI Edge"]
 
 
 
@@ -465,14 +493,14 @@ st.metric(
 
     "🤖 AI Edge Score",
 
-    f"{score}/100"
+    f"{edge}/100"
 
 )
 
 
 
 # ==========================
-# 8 SÄULEN SYSTEM
+# 8 SÄULEN
 # ==========================
 
 
@@ -481,15 +509,15 @@ st.divider()
 
 st.subheader(
 
-    "📊 8-Säulen Analyse"
+    "📊 8-Säulen-System"
 
 )
 
 
 
-analyse = pd.DataFrame({
+score_table = pd.DataFrame({
 
-    "Bereich":[
+    "Säule":[
 
         "Form",
 
@@ -509,12 +537,11 @@ analyse = pd.DataFrame({
 
     ],
 
-
-    "Status":[
-
-        "Basis",
+    "Bewertung":[
 
         "Basis",
+
+        "Offen",
 
         "Offen",
 
@@ -533,63 +560,11 @@ analyse = pd.DataFrame({
 })
 
 
-st.table(analyse)
+st.table(
 
-
-
-# ==========================
-# TABELLE
-# ==========================
-
-
-st.divider()
-
-
-st.subheader(
-
-    "🏆 Tabelle"
+    score_table
 
 )
-
-
-
-if table:
-
-
-    rows = []
-
-
-    for t in table:
-
-
-        rows.append({
-
-            "Platz":
-            t["position"],
-
-
-            "Team":
-            t["team"]["name"],
-
-
-            "Punkte":
-            t["points"],
-
-
-            "Tore":
-            f"{t['goalsFor']}:{t['goalsAgainst']}"
-
-        })
-
-
-
-    st.dataframe(
-
-        pd.DataFrame(rows),
-
-        use_container_width=True
-
-    )
 
 
 
@@ -611,7 +586,7 @@ st.subheader(
 
 quote = st.number_input(
 
-    "Buchmacher Quote",
+    "Quote",
 
     min_value=1.01,
 
@@ -625,13 +600,13 @@ quote = st.number_input(
 
 
 
-wahrscheinlichkeit = score / 100
+probability = edge / 100
 
 
 
-faire_quote = round(
+fair_quote = round(
 
-    1 / wahrscheinlichkeit,
+    1 / probability,
 
     2
 
@@ -641,7 +616,7 @@ faire_quote = round(
 
 value = round(
 
-    ((quote * wahrscheinlichkeit)-1)*100,
+    ((quote * probability)-1)*100,
 
     1
 
@@ -657,9 +632,9 @@ with a:
 
     st.metric(
 
-        "Modell",
+        "Modellchance",
 
-        f"{wahrscheinlichkeit*100:.1f}%"
+        f"{probability*100:.1f}%"
 
     )
 
@@ -670,7 +645,7 @@ with b:
 
         "Faire Quote",
 
-        faire_quote
+        fair_quote
 
     )
 
@@ -690,13 +665,13 @@ with c:
 if value >= 10:
 
     st.success(
-        "🟢 Value Bet"
+        "🟢 VALUE BET erkannt"
     )
 
 elif value >= 0:
 
     st.info(
-        "🟡 Kleine Kante"
+        "🟡 Kleine Modellkante"
     )
 
 else:
@@ -717,7 +692,7 @@ st.divider()
 
 st.subheader(
 
-    "💰 Einsatz"
+    "💰 Bankroll"
 
 )
 
@@ -725,7 +700,7 @@ st.subheader(
 
 bankroll = st.number_input(
 
-    "Bankroll (€)",
+    "Kontostand (€)",
 
     min_value=1.0,
 
@@ -735,7 +710,7 @@ bankroll = st.number_input(
 
 
 
-einsatz = round(
+stake = round(
 
     bankroll * 0.03,
 
@@ -747,8 +722,8 @@ einsatz = round(
 
 st.metric(
 
-    "3%-Einsatz",
+    "Empfohlener Einsatz",
 
-    f"{einsatz} €"
+    f"{stake} €"
 
 )
