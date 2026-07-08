@@ -270,7 +270,14 @@ st.write(match["home_id"])
 st.write("Auswärts ID:")
 st.write(match["away_id"])
 
+st.write("🏠 Letzte Heimspiele:")
+st.write(last_games(match["home_id"]))
 
+st.write("✈️ Letzte Auswärtsspiele:")
+st.write(last_games(match["away_id"]))
+
+st.write("⚔️ H2H:")
+st.write(get_h2h(match["home_id"], match["away_id"]))
 
 st.divider()
 
